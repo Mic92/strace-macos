@@ -14,9 +14,9 @@ jobs:
       matrix:
         include:
           # x86_64 support is work in progress
-          # - os: macos-13
+          # - os: macos-15-large  # Intel x86_64
           #   arch: x86_64
-          - os: macos-latest
+          - os: macos-latest  # Apple Silicon arm64
             arch: arm64
     runs-on: ${{ matrix.os }}
 
