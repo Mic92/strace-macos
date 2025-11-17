@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from strace_macos.exceptions import LLDBLoadError
+
 if TYPE_CHECKING:
     from types import ModuleType
 
@@ -78,8 +80,10 @@ def load_lldb_module() -> ModuleType:
 
     # Failed to load LLDB
     msg = (
-        "Failed to load LLDB Python module. "
+        "Failed to load LLDB Python module.\n"
         "Make sure you're running with system Python (/usr/bin/python3) "
-        "and have Xcode Command Line Tools installed."
+        "and have Xcode Command Line Tools installed.\n"
+        "\nTo install Xcode Command Line Tools:\n"
+        "  xcode-select --install"
     )
-    raise RuntimeError(msg)
+    raise LLDBLoadError(msg)

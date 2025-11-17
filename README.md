@@ -35,12 +35,12 @@ strace-macos requires macOS system Python (has LLDB bindings):
 /usr/bin/python3 -m pip install --user git+https://github.com/Mic92/strace-macos
 
 # Then run (if ~/Library/Python/3.x/bin is in PATH)
-strace ls
+strace /usr/local/bin/git status  # or any homebrew-installed binary
 
 # Or run directly from repository without installing
 git clone https://github.com/Mic92/strace-macos
 cd strace-macos
-/usr/bin/python3 -m strace_macos ls
+/usr/bin/python3 -m strace_macos /usr/local/bin/git status
 ```
 
 ## Usage
@@ -48,19 +48,19 @@ cd strace-macos
 ### Trace a command
 
 ```bash
-# Basic usage
-strace ls -la
+# Basic usage (use non-system binaries like homebrew or nix-installed)
+strace /usr/local/bin/git status
 
 # Output to file
-strace -o trace.txt ls
+strace -o trace.txt /usr/local/bin/git status
 
 # JSON output
-strace --json ls > trace.jsonl
+strace --json /usr/local/bin/git status > trace.jsonl
 
 # Filter syscalls
-strace -e trace=open,close ls
-strace -e trace=file ls        # All file operations
-strace -e trace=network curl   # Network syscalls only
+strace -e trace=open,close /usr/local/bin/git status
+strace -e trace=file /usr/local/bin/git status    # All file operations
+strace -e trace=network /usr/local/bin/curl https://example.com   # Network syscalls only
 ```
 
 ### Attach to running process
@@ -72,7 +72,7 @@ strace -p 1234
 ### Summary statistics
 
 ```bash
-strace -c ls
+strace -c /usr/local/bin/git status
 # % time     seconds  usecs/call     calls    errors syscall
 # ------ ----------- ----------- --------- --------- ----------------
 #  45.23    0.001234          12       103           read

@@ -97,4 +97,11 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    from strace_macos.exceptions import StraceError
+
+    try:
+        sys.exit(main())
+    except StraceError as e:
+        # User-facing errors: print message without stack trace
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
