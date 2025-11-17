@@ -19,7 +19,12 @@
       imports = [ inputs.treefmt-nix.flakeModule ];
 
       perSystem =
-        { pkgs, ... }:
+        {
+          pkgs,
+          lib,
+          self',
+          ...
+        }:
         {
           packages.default = pkgs.stdenv.mkDerivation {
             pname = "strace-macos";
@@ -60,6 +65,13 @@
               echo "Run tests with: /usr/bin/python3 ./run_tests.py"
             '';
           };
+
+          checks =
+            let
+              packages = lib.mapAttrs' (n: lib.nameValuePair "package-${n}") self'.packages;
+              devShells = lib.mapAttrs' (n: lib.nameValuePair "devShell-${n}") self'.devShells;
+            in
+            packages // devShells;
 
           treefmt = {
             projectRootFile = "flake.nix";

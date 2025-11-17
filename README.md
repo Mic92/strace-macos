@@ -6,13 +6,13 @@ A system call tracer for macOS using the LLDB debugger API.
 
 ## Features
 
-- ✅ **Works with SIP enabled** - Unlike `dtruss`, doesn't require disabling System Integrity Protection
-- ✅ **Pure Python implementation** - No kernel extensions or compiled components
-- ✅ **Multiple output formats** - JSON Lines and strace-compatible text output
-- ✅ **Syscall filtering** - Filter by syscall name or category (`-e trace=file`, `-e trace=network`)
-- ✅ **Symbolic decoding** - Automatically decodes flags, error codes, and struct fields
-- ✅ **Color output** - Syntax highlighting when output is a TTY
-- ✅ **Summary statistics** - Time/call/error counts with `-c`
+- **Works with SIP enabled** - Unlike `dtruss`, doesn't require disabling System Integrity Protection
+- **Pure Python implementation** - No kernel extensions or compiled components
+- **Multiple output formats** - JSON Lines and strace-compatible text output
+- **Syscall filtering** - Filter by syscall name or category (`-e trace=file`, `-e trace=network`)
+- **Symbolic decoding** - Automatically decodes flags, error codes, and struct fields
+- **Color output** - Syntax highlighting when output is a TTY
+- **Summary statistics** - Time/call/error counts with `-c`
 
 ## Installation
 
@@ -118,35 +118,35 @@ The tracer uses LLDB's Python bindings to:
 ## Implementation Status
 
 **Working**:
-- ✅ Spawn and trace new processes
-- ✅ Basic syscall capture (entry/exit)
-- ✅ Argument decoding (integers, strings, pointers)
-- ✅ Symbolic flag decoding (O_RDONLY, etc.)
-- ✅ Error code decoding (ENOENT, etc.)
-- ✅ JSON and text output formats
-- ✅ Color output with syntax highlighting
+- Spawn and trace new processes
+- Basic syscall capture (entry/exit)
+- Argument decoding (integers, strings, pointers)
+- Symbolic flag decoding (O_RDONLY, etc.)
+- Error code decoding (ENOENT, etc.)
+- JSON and text output formats
+- Color output with syntax highlighting
 
 **In Progress**:
-- 🚧 Attach to running processes
-- 🚧 Syscall filtering (`-e trace=`)
-- 🚧 Network syscalls (socket, connect, etc.)
-- 🚧 Summary statistics (`-c`)
-- 🚧 Struct decoding (stat, etc.)
+- Attach to running processes
+- Syscall filtering (`-e trace=`)
+- Network syscalls (socket, connect, etc.)
+- Summary statistics (`-c`)
+- Struct decoding (stat, etc.)
 
 **Planned**:
-- ⏳ Multi-threaded process support
-- ⏳ Follow forks (`-f`)
-- ⏳ String truncation control (`-s`)
-- ⏳ Relative/absolute timestamps (`-t`, `-tt`, `-ttt`)
+- Multi-threaded process support
+- Follow forks (`-f`)
+- String truncation control (`-s`)
+- Relative/absolute timestamps (`-t`, `-tt`, `-ttt`)
 
 ## Why not dtruss?
 
 macOS ships with `dtruss`, a DTrace-based syscall tracer. However:
 
-- ❌ Requires disabling System Integrity Protection (SIP)
-- ❌ Doesn't work on modern macOS versions without workarounds
-- ❌ Limited filtering capabilities
-- ❌ No symbolic decoding of arguments
+- Requires disabling System Integrity Protection (SIP)
+- Doesn't work on modern macOS versions without workarounds
+- Limited filtering capabilities
+- No symbolic decoding of arguments
 
 strace-macos works with SIP enabled and provides richer output.
 
