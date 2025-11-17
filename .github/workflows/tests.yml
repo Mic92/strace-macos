@@ -2,7 +2,7 @@ name: Tests
 
 on:
   push:
-    branches: [main, ci]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -21,11 +21,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Compile test fixtures
-        run: |
-          cd tests/fixtures
-          clang -o test_executable test_executable.c
 
       - name: Run tests
         run: /usr/bin/python3 run_tests.py -v
