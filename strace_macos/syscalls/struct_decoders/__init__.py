@@ -97,7 +97,7 @@ class StructDecoder:
             if field_name in self.field_formatters:
                 method_name = self.field_formatters[field_name]
                 formatter = getattr(self, method_name)
-                formatted_value = formatter(raw_value, no_abbrev)
+                formatted_value = formatter(raw_value, no_abbrev=no_abbrev)
             else:
                 formatted_value = raw_value
 
