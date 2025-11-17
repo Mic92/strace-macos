@@ -12,6 +12,10 @@ strace = "strace_macos.__main__:main"
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["tests*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py39"
