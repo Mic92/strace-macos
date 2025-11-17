@@ -10,6 +10,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TextIO
 
 from strace_macos.arch import Architecture, detect_architecture
+from strace_macos.exceptions import (
+    InvalidCommandError,
+    InvalidFilterError,
+    ProcessLaunchError,
+    TargetCreationError,
+    UnsupportedArchitectureError,
+)
 from strace_macos.lldb_loader import load_lldb_module
 from strace_macos.syscalls.args import (
     FileDescriptorArg,
@@ -100,8 +107,15 @@ class Tracer:
             filter_expr: Filter expression (e.g., "trace=open,close" or "trace=file")
         """
         if not filter_expr.startswith("trace="):
-            msg = f"Invalid filter expression: {filter_expr}"
-            raise ValueError(msg)
+            msg = (
+                f"Invalid filter expression: {filter_expr}\n"
+                f"Filter expressions must start with 'trace='\n"
+                f"Examples:\n"
+                f"  -e trace=open,close,read\n"
+                f"  -e trace=file\n"
+                f"  -e trace=network"
+            )
+            raise InvalidFilterError(msg)
 
         value = filter_expr[6:]  # Remove "trace=" prefix
 
@@ -181,8 +195,12 @@ class Tracer:
             Exit code of the traced process
         """
         if not command:
-            msg = "Command cannot be empty"
-            raise ValueError(msg)
+            msg = (
+                "No command specified.\n"
+                "Usage: strace <command> [args...]\n"
+                "Example: strace /usr/local/bin/git status"
+            )
+            raise InvalidCommandError(msg)
 
         # Open output
         self.output_handle = self._open_output()
@@ -195,14 +213,39 @@ class Tracer:
             # Create target
             target = debugger.CreateTarget(command[0])
             if not target:
-                msg = f"Failed to create target for: {command[0]}"
-                raise RuntimeError(msg)
+                # Check if it's a system binary
+                binary_path = Path(command[0])
+                if binary_path.exists() and str(binary_path.resolve()).startswith("/usr/bin/"):
+                    msg = (
+                        f"Cannot trace system binary: {command[0]}\n"
+                        f"System binaries in /usr/bin are protected by System Integrity Protection (SIP).\n"
+                        f"Try tracing user-installed binaries instead:\n"
+                        f"  - Homebrew binaries: /usr/local/bin/* or /opt/homebrew/bin/*\n"
+                        f"  - Nix binaries: /nix/store/*\n"
+                        f"  - User scripts or binaries in ~/bin or ~/.local/bin"
+                    )
+                elif not binary_path.exists():
+                    msg = f"Binary not found: {command[0]}"
+                else:
+                    msg = (
+                        f"Failed to create LLDB target for: {command[0]}\n"
+                        f"This may happen if:\n"
+                        f"  - The binary is not executable (check permissions)\n"
+                        f"  - The binary format is not supported\n"
+                        f"  - The binary is protected by code signing restrictions"
+                    )
+                raise TargetCreationError(msg)
 
             # Detect architecture
             arch = detect_architecture(target)
             if not arch:
-                msg = f"Unsupported architecture: {target.GetTriple()}"
-                raise RuntimeError(msg)
+                msg = (
+                    f"Unsupported architecture: {target.GetTriple()}\n"
+                    f"strace-macos currently supports:\n"
+                    f"  - arm64 (Apple Silicon)\n"
+                    f"  - x86_64 (Intel) - work in progress"
+                )
+                raise UnsupportedArchitectureError(msg)
             self.arch = arch
 
             # Set breakpoints for syscalls
@@ -216,8 +259,16 @@ class Tracer:
             process = target.Launch(launch_info, error)
 
             if not process or not process.IsValid():
-                msg = f"Failed to launch process: {error}"
-                raise RuntimeError(msg)
+                error_msg = str(error) if error else "Unknown error"
+                msg = (
+                    f"Failed to launch process: {command[0]}\n"
+                    f"Error: {error_msg}\n"
+                    f"This may happen if:\n"
+                    f"  - You don't have permission to execute the binary\n"
+                    f"  - The binary requires special entitlements\n"
+                    f"  - The binary's code signature is invalid"
+                )
+                raise ProcessLaunchError(msg)
 
             # Trace syscalls
             exit_code = self._trace_loop(process)
