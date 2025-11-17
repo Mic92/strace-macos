@@ -54,24 +54,7 @@
             };
           };
 
-          devShells.default = pkgs.mkShell {
-            packages = with pkgs; [
-              ruff
-              mypy
-            ];
-
-            shellHook = ''
-              echo "strace-macos development environment"
-              echo "Run tests with: /usr/bin/python3 ./run_tests.py"
-            '';
-          };
-
-          checks =
-            let
-              packages = lib.mapAttrs' (n: lib.nameValuePair "package-${n}") self'.packages;
-              devShells = lib.mapAttrs' (n: lib.nameValuePair "devShell-${n}") self'.devShells;
-            in
-            packages // devShells;
+          checks = lib.mapAttrs' (n: lib.nameValuePair "package-${n}") self'.packages;
 
           treefmt = {
             projectRootFile = "flake.nix";

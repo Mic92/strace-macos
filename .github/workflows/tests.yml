@@ -13,8 +13,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-13
-            arch: x86_64
+          # x86_64 support is work in progress
+          # - os: macos-13
+          #   arch: x86_64
           - os: macos-latest
             arch: arm64
     runs-on: ${{ matrix.os }}

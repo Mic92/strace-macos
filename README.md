@@ -24,9 +24,6 @@ nix run github:Mic92/strace-macos -- ls
 
 # Install to profile
 nix profile install github:Mic92/strace-macos
-
-# Development shell
-nix develop
 ```
 
 ### Manual Installation
@@ -79,7 +76,8 @@ strace -c ls
 ## Requirements
 
 - macOS 12+ (Monterey or later)
-- Apple Silicon (ARM64) or Intel (x86_64)
+- Apple Silicon (ARM64) - **primary platform**
+- Intel (x86_64) - **work in progress**
 - Xcode Command Line Tools (for LLDB)
 - System Python (`/usr/bin/python3`)
 

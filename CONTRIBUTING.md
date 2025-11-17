@@ -19,7 +19,7 @@ Thank you for your interest in contributing to strace-macos! This document provi
 - macOS 12+ (Monterey or later)
 - Apple Silicon (ARM64) or Intel (x86_64)
 - Xcode Command Line Tools
-- Nix with flakes enabled (recommended) OR system Python 3.9+
+- System Python 3.9+ (`/usr/bin/python3`)
 
 ### Fork and Clone
 
@@ -31,17 +31,10 @@ cd strace-macos
 
 ## Development Environment
 
-### Using Nix (Recommended)
-
-```bash
-# Enter development shell
-nix develop
-
-# This provides:
-# - python3
-# - ruff (linter and formatter)
-# - mypy (type checker)
-```
+Development tools can be installed via:
+- Nix: `nix profile install nixpkgs#ruff nixpkgs#mypy`
+- Homebrew: `brew install ruff mypy`
+- pip: `/usr/bin/python3 -m pip install --user ruff mypy`
 
 ## Code Style
 
