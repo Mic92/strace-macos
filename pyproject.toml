@@ -12,9 +12,8 @@ strace = "strace_macos.__main__:main"
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.packages.find]
-where = ["."]
-exclude = ["tests*"]
+[tool.setuptools]
+packages = ["strace_macos"]
 
 [tool.ruff]
 line-length = 100
@@ -53,6 +52,7 @@ no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 strict_equality = true
+exclude = ["setup.py"]
 
 [[tool.mypy.overrides]]
 module = "lldb"
