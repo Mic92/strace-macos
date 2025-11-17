@@ -31,6 +31,7 @@ class TestColorOutput(StraceTestCase):
                 stderr=slave_fd,
                 stdout=subprocess.DEVNULL,
                 stdin=subprocess.DEVNULL,
+                env=self.get_test_env(),
             )
 
             # Close slave in parent process (child has it)
@@ -98,6 +99,7 @@ class TestColorOutput(StraceTestCase):
             check=False,
             capture_output=True,
             text=True,
+            env=self.get_test_env(),
         )
 
         # Verify NO ANSI color codes are present
@@ -130,6 +132,7 @@ class TestColorOutput(StraceTestCase):
                 stderr=slave_fd,
                 stdout=subprocess.DEVNULL,
                 stdin=subprocess.DEVNULL,
+                env=self.get_test_env(),
             )
 
             os.close(slave_fd)

@@ -32,3 +32,18 @@ class StraceTestCase(unittest.TestCase):
 
         # Get test executable (compiled once, reused for all tests)
         self.test_executable = get_test_executable()
+
+        # Store project root for PYTHONPATH
+        self.project_root = Path(__file__).parent.parent
+
+    def get_test_env(self) -> dict[str, str]:
+        """Get environment dict with PYTHONPATH set to project root.
+
+        Use this when spawning subprocess tests that need to import strace_macos.
+
+        Returns:
+            Environment dict with PYTHONPATH configured
+        """
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(self.project_root)
+        return env
