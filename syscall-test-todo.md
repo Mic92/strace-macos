@@ -9,8 +9,8 @@ Legend:
 ## File I/O Syscalls (162 total)
 
 ### Basic File Operations
-- [x] open
-- [x] openat
+- [x] open (with variadic arg handling)
+- [x] openat (with variadic arg handling)
 - [x] close
 - [ ] close_nocancel
 - [x] read
@@ -21,20 +21,20 @@ Legend:
 - [ ] unlinkat
 
 ### File Descriptor Operations
-- [ ] dup
-- [ ] dup2
-- [ ] lseek
-- [ ] pread
+- [x] dup
+- [x] dup2
+- [x] lseek
+- [x] pread
 - [ ] pread_nocancel
 - [ ] preadv
 - [ ] preadv_nocancel
-- [ ] pwrite
+- [x] pwrite
 - [ ] pwrite_nocancel
 - [ ] pwritev
 - [ ] pwritev_nocancel
-- [ ] readv
+- [x] readv (with iovec decoding)
 - [ ] readv_nocancel
-- [ ] writev
+- [x] writev (with iovec decoding)
 - [ ] writev_nocancel
 
 ### File Status & Metadata
@@ -110,8 +110,8 @@ Legend:
 - [ ] msync_nocancel
 
 ### File Control & Special Operations
-- [ ] ioctl
-- [ ] fcntl
+- [x] ioctl (FIOCLEX, FIONCLEX, FIONREAD, TIOCGWINSZ, TIOCGETA)
+- [x] fcntl (F_GETFD, F_SETFD, F_GETFL, F_SETFL with flag decoding)
 - [ ] fcntl_nocancel
 - [ ] truncate
 - [ ] ftruncate
@@ -177,6 +177,7 @@ Legend:
 - [ ] fchflags
 - [ ] mremap_encrypted
 - [ ] nfssvc
+- [x] mkstemp (tested via test_fd_ops)
 
 ---
 
@@ -307,23 +308,23 @@ Legend:
 - [ ] accept_nocancel
 
 ### Socket I/O
-- [x] sendto
+- [x] sendto (with buffer and flags decoding)
 - [ ] sendto_nocancel
-- [x] sendmsg
+- [x] sendmsg (with msghdr and iovec decoding)
 - [ ] sendmsg_nocancel
 - [ ] sendmsg_x
-- [x] recvfrom
+- [x] recvfrom (with flags decoding)
 - [ ] recvfrom_nocancel
-- [x] recvmsg
+- [x] recvmsg (with msghdr decoding)
 - [ ] recvmsg_nocancel
 - [ ] recvmsg_x
 
 ### Socket Control & Information
-- [x] getsockname
-- [x] getpeername
-- [x] getsockopt
-- [x] setsockopt
-- [x] shutdown
+- [x] getsockname (with sockaddr decoding)
+- [x] getpeername (with sockaddr decoding)
+- [x] getsockopt (with level and option decoding)
+- [x] setsockopt (with level and option decoding)
+- [x] shutdown (with SHUT_* flag decoding)
 - [ ] peeloff
 
 ### Network Control & Policy
@@ -551,11 +552,6 @@ Legend:
 
 ## Test Coverage Summary
 
-### Well-Tested Areas
-- Basic file operations (open, read, write, close, unlink)
-- Basic network operations (socket, connect)
-- Stat family syscalls (stat, fstat, lstat and their 64-bit variants)
-
 ### Completely Untested Areas
 - IPC mechanisms (message queues, semaphores, shared memory)
 - Kqueue/kevent operations
@@ -564,16 +560,20 @@ Legend:
 - Debug/tracing syscalls
 - Security/MAC syscalls
 - System information queries
-- Memory management operations
+- Memory management operations (mmap, munmap, mprotect)
 - Thread management
 - Time/timer operations
-- All *_nocancel variants
-- All *_extended variants
+- Process lifecycle (fork, execve, wait4)
+- All *_nocancel variants (close_nocancel, read_nocancel, etc.)
+- All *_extended variants (stat_extended, mkdir_extended, etc.)
+- Directory operations (chdir, getdirentries, etc.)
+- Extended attributes (getxattr, setxattr, etc.)
+- File locking (flock, fcntl locking)
 
 ### Priority Test Candidates
-1. **File I/O**: readv/writev, pread/pwrite, dup/dup2, fcntl, ioctl
-2. **Process**: fork, execve, wait4, getpid, getuid/geteuid
-3. **Memory**: mmap, munmap, mprotect
-4. **Network**: bind, listen, accept, send/recv families
-5. **Kqueue**: kqueue, kevent (modern event notification)
-6. **Signal**: sigaction, sigprocmask, kill
+1. **Process**: fork, execve, wait4, getpid, getuid/geteuid (high-priority fundamentals)
+2. **Memory**: mmap, munmap, mprotect (commonly used)
+3. **Kqueue**: kqueue, kevent (modern macOS event notification)
+4. **Signal**: sigaction, sigprocmask, kill (important for process control)
+5. **Directory**: mkdir, rmdir, chdir, getdirentries (common file operations)
+6. **Extended I/O**: preadv, pwritev (iovec variants of pread/pwrite)
