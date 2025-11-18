@@ -13,3 +13,7 @@ class StraceError(Exception):
 
 class LLDBLoadError(StraceError):
     """Failed to load LLDB Python module."""
+
+
+class SIPProtectedError(StraceError):
+    """Binary is protected by System Integrity Protection (SIP)."""

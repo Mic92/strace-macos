@@ -6,6 +6,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from strace_macos.exceptions import StraceError
+
 
 def main(argv: list[str] | None = None) -> int:
     """Main entry point for strace-macos.
@@ -81,24 +83,27 @@ def main(argv: list[str] | None = None) -> int:
     # Import tracer here to avoid loading LLDB until needed
     from strace_macos.tracer import Tracer  # noqa: PLC0415
 
-    # Create tracer
-    tracer = Tracer(
-        output_file=args.output,
-        json_output=args.json,
-        summary_only=args.summary_only,
-        filter_expr=args.filter_expr,
-        no_abbrev=args.no_abbrev,
-    )
+    try:
+        # Create tracer
+        tracer = Tracer(
+            output_file=args.output,
+            json_output=args.json,
+            summary_only=args.summary_only,
+            filter_expr=args.filter_expr,
+            no_abbrev=args.no_abbrev,
+        )
 
-    # Run trace
-    if args.pid is not None:
-        return tracer.attach(args.pid)
-    return tracer.spawn(args.command)
+        # Run trace
+        if args.pid is not None:
+            return tracer.attach(args.pid)
+        return tracer.spawn(args.command)
+    except StraceError as e:
+        # User-facing errors: print message without stack trace
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
-    from strace_macos.exceptions import StraceError
-
     try:
         sys.exit(main())
     except StraceError as e:

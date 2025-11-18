@@ -10,7 +10,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TextIO
 
 from strace_macos.arch import Architecture, detect_architecture
+from strace_macos.exceptions import SIPProtectedError
 from strace_macos.lldb_loader import load_lldb_module
+from strace_macos.sip import get_sip_error_message, is_sip_protected, resolve_binary_path
 from strace_macos.syscalls.args import (
     SyscallArg,
     UnknownArg,
@@ -191,6 +193,15 @@ class Tracer:
         if not command:
             msg = "Command cannot be empty"
             raise ValueError(msg)
+
+        # Resolve binary path and check if it's SIP-protected
+        binary_path = resolve_binary_path(command[0])
+        if binary_path is None:
+            msg = f"Binary not found: {command[0]}"
+            raise FileNotFoundError(msg)
+
+        if is_sip_protected(binary_path):
+            raise SIPProtectedError(get_sip_error_message(binary_path))
 
         # Open output
         self.output_handle = self._open_output()
