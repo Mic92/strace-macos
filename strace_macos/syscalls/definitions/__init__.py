@@ -435,7 +435,7 @@ class BufferParam(Param):
 
     def decode(  # noqa: PLR0911
         self,
-        tracer: Any,  # noqa: ARG002
+        tracer: Any,
         process: Any,
         raw_value: int,
         all_args: list[int],
@@ -462,13 +462,18 @@ class BufferParam(Param):
         size_value = all_args[self.size_arg_index]
         size = size_value
 
-        # Validate size is reasonable
-        if size < 0 or size > 65536:
+        # Validate size is reasonable (including 0 - LLDB doesn't like 0-byte reads)
+        if size <= 0:
             return PointerArg(raw_value)
+
+        # Cap the size to avoid reading huge buffers (like strace's -s option)
+        # Default is 32 bytes like strace, but we allow up to 4096 for large reads
+        max_buffer_size = 4096
+        actual_size = min(size, max_buffer_size) if not tracer.no_abbrev else min(size, 65536)
 
         # Read the buffer data
         error = lldb.SBError()
-        data = process.ReadMemory(raw_value, size, error)
+        data = process.ReadMemory(raw_value, actual_size, error)
 
         if error.Fail() or not data:
             return PointerArg(raw_value)
