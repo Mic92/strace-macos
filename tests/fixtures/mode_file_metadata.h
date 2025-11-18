@@ -110,19 +110,32 @@ int mode_file_metadata(int argc, char *argv[]) {
 
   /* Test mkdir() and mkdirat() with various modes */
   strcpy(temp_template, "/tmp/test_dir1_XXXXXX");
-  mktemp(temp_template); /* Note: mktemp is unsafe but ok for directory names */
+  mkdtemp(temp_template); /* Creates directory atomically */
   strcpy(dir1, temp_template);
-  mkdir(dir1, 0755);
+
+  /* Test mkdir() explicitly with different modes */
+  char mkdir_test1[256];
+  snprintf(mkdir_test1, sizeof(mkdir_test1), "%s/subdir1", dir1);
+  mkdir(mkdir_test1, 0755);
+
+  char mkdir_test2[256];
+  snprintf(mkdir_test2, sizeof(mkdir_test2), "%s/subdir2", dir1);
+  mkdir(mkdir_test2, 0700);
 
   strcpy(temp_template, "/tmp/test_dir2_XXXXXX");
-  mktemp(temp_template);
+  mkdtemp(temp_template);
   strcpy(dir2, temp_template);
-  mkdir(dir2, 0700);
 
   strcpy(temp_template, "/tmp/test_dir_at_XXXXXX");
-  mktemp(temp_template);
+  mkdtemp(temp_template);
   strcpy(dir_at, temp_template);
-  mkdirat(AT_FDCWD, dir_at, 0755);
+
+  /* Test mkdirat() explicitly */
+  int dirfd_for_mkdir = open(dir2, O_RDONLY | O_DIRECTORY);
+  if (dirfd_for_mkdir >= 0) {
+    mkdirat(dirfd_for_mkdir, "subdir_at", 0755);
+    close(dirfd_for_mkdir);
+  }
 
   /* Test rename() and renameat() */
   strcpy(temp_template, "/tmp/test_rename_src_XXXXXX");
@@ -148,12 +161,20 @@ int mode_file_metadata(int argc, char *argv[]) {
 
   /* Test unlinkat() with directory (flags=AT_REMOVEDIR) */
   strcpy(temp_template, "/tmp/test_unlinkat_dir_XXXXXX");
-  mktemp(temp_template);
+  mkdtemp(temp_template);
   strcpy(unlinkat_dir, temp_template);
-  mkdir(unlinkat_dir, 0755);
+  chmod(unlinkat_dir, 0755); /* Ensure correct permissions */
   unlinkat(AT_FDCWD, unlinkat_dir, AT_REMOVEDIR);
 
-  /* Test rmdir() */
+  /* Test rmdir() - clean up subdirectories first */
+  char cleanup_path[256];
+  snprintf(cleanup_path, sizeof(cleanup_path), "%s/subdir_at", dir2);
+  rmdir(cleanup_path);
+  snprintf(cleanup_path, sizeof(cleanup_path), "%s/subdir2", dir1);
+  rmdir(cleanup_path);
+  snprintf(cleanup_path, sizeof(cleanup_path), "%s/subdir1", dir1);
+  rmdir(cleanup_path);
+
   rmdir(dir_at);
   rmdir(dir2);
   rmdir(dir1);

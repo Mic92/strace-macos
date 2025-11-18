@@ -80,6 +80,9 @@ class JSONFormatter:
         if isinstance(arg, (IntArg, FlagsArg)):
             # Both IntArg and FlagsArg use symbolic if available, otherwise value
             return arg.symbolic if arg.symbolic else arg.value
+        if isinstance(arg, StringArg):
+            # Return raw value for JSON (don't include quotes - json.dumps will add them)
+            return arg.value
         if isinstance(arg, UnsignedArg):
             return arg.value
         if isinstance(arg, PointerArg):

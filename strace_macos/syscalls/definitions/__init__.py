@@ -25,7 +25,7 @@ from strace_macos.syscalls.args import (
 )
 from strace_macos.syscalls.struct_decoders import get_struct_decoder
 from strace_macos.syscalls.struct_decoders.iovec import IovecArrayDecoder
-from strace_macos.syscalls.symbols.file import AT_FDCWD
+from strace_macos.syscalls.symbols.file import AT_FDCWD, FLOCK_OPS
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -207,6 +207,38 @@ class DirFdParam(Param):
         if signed_val == AT_FDCWD:
             return IntArg(signed_val, "AT_FDCWD")
         return IntArg(signed_val, None)
+
+
+class FlockOpParam(Param):
+    """Parameter decoder for flock() operation flags.
+
+    Decodes LOCK_SH, LOCK_EX, LOCK_UN, and LOCK_NB flags.
+    """
+
+    def decode(
+        self,
+        tracer: Any,
+        process: Any,  # noqa: ARG002
+        raw_value: int,
+        all_args: list[int],  # noqa: ARG002
+        *,
+        at_entry: bool,  # noqa: ARG002
+    ) -> SyscallArg:
+        """Decode flock operation to FlagsArg with symbolic names."""
+        if tracer.no_abbrev:
+            return IntArg(raw_value, f"0x{raw_value:x}")
+
+        flags = []
+        # LOCK_NB is bit 2 (value 4), can be combined with other operations
+        base_op = raw_value & ~4
+        if base_op in FLOCK_OPS:
+            flags.append(FLOCK_OPS[base_op])
+        if raw_value & 4:
+            flags.append("LOCK_NB")
+
+        if flags:
+            return FlagsArg(raw_value, "|".join(flags))
+        return IntArg(raw_value, None)
 
 
 class PointerParam(Param):

@@ -7,7 +7,6 @@ from strace_macos.syscalls.symbols.file import (
     decode_access_mode,
     decode_file_mode,
     decode_file_type_mode,
-    decode_flock_op,
     decode_ioctl_cmd,
     decode_open_flags,
 )
@@ -19,7 +18,6 @@ __all__ = [
     "decode_errno",
     "decode_file_mode",
     "decode_file_type_mode",
-    "decode_flock_op",
     "decode_ioctl_cmd",
     "decode_ipc_flags",
     "decode_open_flags",

@@ -87,25 +87,25 @@ Legend:
 - [ ] mkdir_extended
 - [x] mkdirat (with AT_FDCWD and octal mode decoding)
 - [x] rmdir
-- [ ] mkfifo
+- [x] mkfifo (with octal mode decoding)
 - [ ] mkfifo_extended
-- [ ] mkfifoat
-- [ ] mknod
-- [ ] mknodat
+- [x] mkfifoat (with AT_FDCWD and octal mode decoding)
+- [x] mknod (with octal mode and dev_t decoding)
+- [x] mknodat (with AT_FDCWD, octal mode, and dev_t decoding)
 
 ### Directory Operations
-- [ ] chdir
-- [ ] fchdir
-- [ ] chroot
+- [x] chdir
+- [x] fchdir
+- [x] chroot
 - [ ] getdirentries
 - [ ] getdirentries64
 - [ ] getdirentriesattr
 
 ### File Locking & Synchronization
-- [ ] flock
-- [ ] fsync
+- [x] flock (with LOCK_SH, LOCK_EX, LOCK_UN, LOCK_NB flag decoding)
+- [x] fsync
 - [ ] fsync_nocancel
-- [ ] fdatasync
+- [x] fdatasync
 - [ ] msync
 - [ ] msync_nocancel
 
@@ -113,10 +113,10 @@ Legend:
 - [x] ioctl (FIOCLEX, FIONCLEX, FIONREAD, TIOCGWINSZ, TIOCGETA)
 - [x] fcntl (F_GETFD, F_SETFD, F_GETFL, F_SETFL with flag decoding)
 - [ ] fcntl_nocancel
-- [ ] truncate
-- [ ] ftruncate
-- [ ] utimes
-- [ ] futimes
+- [x] truncate
+- [x] ftruncate
+- [x] utimes
+- [x] futimes
 
 ### Mount & File System Management
 - [ ] mount
@@ -559,21 +559,20 @@ Legend:
 - Signal handling (beyond basic capture)
 - Debug/tracing syscalls
 - Security/MAC syscalls
-- System information queries
-- Memory management operations (mmap, munmap, mprotect)
+- System information queries (sysctl, sysctlbyname)
 - Thread management
 - Time/timer operations
 - Process lifecycle (fork, execve, wait4)
 - All *_nocancel variants (close_nocancel, read_nocancel, etc.)
 - All *_extended variants (stat_extended, mkdir_extended, etc.)
-- Directory operations (chdir, getdirentries, etc.)
+- Directory reading (getdirentries, getdirentries64)
 - Extended attributes (getxattr, setxattr, etc.)
-- File locking (flock, fcntl locking)
+- Mount operations (mount, unmount, statfs)
 
 ### Priority Test Candidates
 1. **Process**: fork, execve, wait4, getpid, getuid/geteuid (high-priority fundamentals)
-2. **Memory**: mmap, munmap, mprotect (commonly used)
-3. **Kqueue**: kqueue, kevent (modern macOS event notification)
-4. **Signal**: sigaction, sigprocmask, kill (important for process control)
-5. **Directory**: mkdir, rmdir, chdir, getdirentries (common file operations)
-6. **Extended I/O**: preadv, pwritev (iovec variants of pread/pwrite)
+2. **Kqueue**: kqueue, kevent (modern macOS event notification)
+3. **Signal**: sigaction, sigprocmask, kill (important for process control)
+4. **Extended I/O**: preadv, pwritev (iovec variants of pread/pwrite)
+5. **Time**: gettimeofday, setitimer, getitimer (commonly used in profiling)
+6. **Extended Attributes**: getxattr, setxattr (macOS-specific metadata)

@@ -147,8 +147,10 @@ class TestFileMetadataSyscalls(unittest.TestCase):
                 assert mode_arg.startswith("0"), (
                     f"chmod mode should be octal (0xxx), got {mode_arg}"
                 )
-                # Should be one of our test modes
-                assert mode_arg in ["0644", "0755", "0600"], f"Unexpected chmod mode: {mode_arg}"
+                # Should be one of our test modes (includes directory chmod calls)
+                assert mode_arg in ["0644", "0755", "0700", "0600"], (
+                    f"Unexpected chmod mode: {mode_arg}"
+                )
 
         # Check fchmod calls
         fchmod_calls = [sc for sc in self.syscalls if sc.get("syscall") == "fchmod"]

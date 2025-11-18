@@ -13,6 +13,7 @@ from strace_macos.syscalls.definitions import (
     DirFdParam,
     FileDescriptorParam,
     FlagsParam,
+    FlockOpParam,
     IntParam,
     IovecParam,
     OctalParam,
@@ -26,7 +27,6 @@ from strace_macos.syscalls.definitions import (
 )
 from strace_macos.syscalls.symbols import (
     decode_access_mode,
-    decode_flock_op,
     decode_ioctl_cmd,
     decode_open_flags,
 )
@@ -230,7 +230,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_flock,
         "flock",
-        params=[FileDescriptorParam(), CustomParam(decode_flock_op)],
+        params=[FileDescriptorParam(), FlockOpParam()],
     ),  # 131
     SyscallDef(numbers.SYS_mkfifo, "mkfifo", params=[StringParam(), OctalParam()]),  # 132
     SyscallDef(numbers.SYS_mkdir, "mkdir", params=[StringParam(), OctalParam()]),  # 136
