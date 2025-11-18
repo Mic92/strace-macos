@@ -97,7 +97,14 @@ class TestFileUtilitiesSyscalls(unittest.TestCase):
             "mkfifoat",
             "mknod",
             "mknodat",
+            "getattrlist",
+            "fgetattrlist",
             "getattrlistat",
+            "getattrlistbulk",
+            "setattrlist",
+            "fsetattrlist",
+            "setattrlistat",
+            "fchownat",
             # chroot will likely fail, but should still be captured
             # clonefileat/fclonefileat may fail but should be captured
         }
@@ -106,8 +113,8 @@ class TestFileUtilitiesSyscalls(unittest.TestCase):
         missing = expected_syscalls - set(syscall_names)
 
         # We should capture most of these
-        assert len(captured) >= 12, (
-            f"Should capture at least 12 file utilities syscalls, got {len(captured)}.\n"
+        assert len(captured) >= 19, (
+            f"Should capture at least 19 file utilities syscalls, got {len(captured)}.\n"
             f"Captured: {sorted(captured)}\n"
             f"Missing: {sorted(missing)}"
         )
@@ -289,24 +296,142 @@ class TestFileUtilitiesSyscalls(unittest.TestCase):
             )
 
     def test_clone_operations(self) -> None:
-        """Test clonefileat() and fclonefileat() syscalls."""
+        """Test clonefileat() and fclonefileat() syscalls with CLONE flags."""
         clonefileat_calls = [sc for sc in self.syscalls if sc.get("syscall") == "clonefileat"]
         fclonefileat_calls = [sc for sc in self.syscalls if sc.get("syscall") == "fclonefileat"]
 
         # These may fail if not on APFS or files don't exist, but should be invoked
+        # We test multiple calls with different flags
         if clonefileat_calls:
-            call = clonefileat_calls[0]
-            # Expects: src_dirfd, src_name, dst_dirfd, dst_name, flags
-            assert len(call["args"]) == 5, (
-                f"clonefileat should have 5 args, got {len(call['args'])}"
+            # Should have multiple clonefileat calls with different flags
+            assert len(clonefileat_calls) >= 2, (
+                f"Should have at least 2 clonefileat calls, got {len(clonefileat_calls)}"
+            )
+
+            flags_seen = set()
+            for call in clonefileat_calls:
+                # Expects: src_dirfd, src_name, dst_dirfd, dst_name, flags
+                assert len(call["args"]) == 5, (
+                    f"clonefileat should have 5 args, got {len(call['args'])}"
+                )
+                flag_arg = call["args"][4]
+                if isinstance(flag_arg, str):
+                    flags_seen.add(flag_arg)
+                elif isinstance(flag_arg, int):
+                    flags_seen.add(str(flag_arg))
+
+            # Should have tested different CLONE flags
+            assert len(flags_seen) >= 2, (
+                f"Should have multiple different CLONE flags, got: {flags_seen}"
             )
 
         if fclonefileat_calls:
-            call = fclonefileat_calls[0]
-            # Expects: srcfd, dst_dirfd, dst_name, flags
-            assert len(call["args"]) == 4, (
-                f"fclonefileat should have 4 args, got {len(call['args'])}"
+            # Should have multiple fclonefileat calls with different flags
+            assert len(fclonefileat_calls) >= 2, (
+                f"Should have at least 2 fclonefileat calls, got {len(fclonefileat_calls)}"
             )
+
+            flags_seen = set()
+            for call in fclonefileat_calls:
+                # Expects: srcfd, dst_dirfd, dst_name, flags
+                assert len(call["args"]) == 4, (
+                    f"fclonefileat should have 4 args, got {len(call['args'])}"
+                )
+                flag_arg = call["args"][3]
+                if isinstance(flag_arg, str):
+                    flags_seen.add(flag_arg)
+                elif isinstance(flag_arg, int):
+                    flags_seen.add(str(flag_arg))
+
+            # Should have tested CLONE_NOFOLLOW
+            assert any("CLONE_NOFOLLOW" in f or "0x1" in f or "0x0001" in f for f in flags_seen), (
+                f"Should have CLONE_NOFOLLOW flag, got flags: {flags_seen}"
+            )
+
+    def test_attribute_syscalls(self) -> None:
+        """Test getattrlist/setattrlist family of syscalls."""
+        getattrlist_calls = [sc for sc in self.syscalls if sc.get("syscall") == "getattrlist"]
+        fgetattrlist_calls = [sc for sc in self.syscalls if sc.get("syscall") == "fgetattrlist"]
+        setattrlist_calls = [sc for sc in self.syscalls if sc.get("syscall") == "setattrlist"]
+        fsetattrlist_calls = [sc for sc in self.syscalls if sc.get("syscall") == "fsetattrlist"]
+        getattrlistbulk_calls = [
+            sc for sc in self.syscalls if sc.get("syscall") == "getattrlistbulk"
+        ]
+        fchownat_calls = [sc for sc in self.syscalls if sc.get("syscall") == "fchownat"]
+
+        # Should have getattrlist
+        if getattrlist_calls:
+            call = getattrlist_calls[0]
+            # Expects: path, attrlist, attrbuf, size, options
+            assert len(call["args"]) == 5, (
+                f"getattrlist should have 5 args, got {len(call['args'])}"
+            )
+            # Check attrlist struct is decoded
+            attrlist_arg = call["args"][1]
+            assert isinstance(attrlist_arg, dict), "attrlist should be decoded as dict"
+            assert "output" in attrlist_arg, "attrlist should have 'output' field"
+            fields = attrlist_arg["output"]
+            assert "commonattr" in fields, "attrlist should have commonattr field"
+            # Should see ATTR_CMN_NAME or ATTR_CMN_OBJTYPE
+            commonattr = str(fields["commonattr"])
+            assert "ATTR_CMN" in commonattr, (
+                f"commonattr should be decoded symbolically, got {commonattr}"
+            )
+
+        # Should have fgetattrlist
+        if fgetattrlist_calls:
+            call = fgetattrlist_calls[0]
+            # Expects: fd, attrlist, attrbuf, size, options
+            assert len(call["args"]) == 5, (
+                f"fgetattrlist should have 5 args, got {len(call['args'])}"
+            )
+
+        # Should have setattrlist
+        if setattrlist_calls:
+            call = setattrlist_calls[0]
+            # Expects: path, attrlist, attrbuf, size, options
+            assert len(call["args"]) == 5, (
+                f"setattrlist should have 5 args, got {len(call['args'])}"
+            )
+
+        # Should have fsetattrlist
+        if fsetattrlist_calls:
+            call = fsetattrlist_calls[0]
+            # Expects: fd, attrlist, attrbuf, size, options
+            assert len(call["args"]) == 5, (
+                f"fsetattrlist should have 5 args, got {len(call['args'])}"
+            )
+
+        # Should have getattrlistbulk
+        if getattrlistbulk_calls:
+            call = getattrlistbulk_calls[0]
+            # Expects: dirfd, attrlist, attrbuf, size, options
+            assert len(call["args"]) == 5, (
+                f"getattrlistbulk should have 5 args, got {len(call['args'])}"
+            )
+
+        # Should have fchownat with flags
+        assert len(fchownat_calls) >= 2, (
+            f"Should have at least 2 fchownat calls, got {len(fchownat_calls)}"
+        )
+        if fchownat_calls:
+            # Check for calls with different flags
+            flags_seen = set()
+            for call in fchownat_calls:
+                # Expects: dirfd, path, uid, gid, flags
+                assert len(call["args"]) == 5, (
+                    f"fchownat should have 5 args, got {len(call['args'])}"
+                )
+                flag_arg = call["args"][4]
+                if isinstance(flag_arg, str):
+                    flags_seen.add(flag_arg)
+                elif isinstance(flag_arg, int):
+                    flags_seen.add(str(flag_arg))
+
+            # Should have tested AT_SYMLINK_NOFOLLOW
+            assert any(
+                "AT_SYMLINK_NOFOLLOW" in f or "0x20" in f or "0x0020" in f for f in flags_seen
+            ), f"Should have AT_SYMLINK_NOFOLLOW flag, got flags: {flags_seen}"
 
 
 if __name__ == "__main__":

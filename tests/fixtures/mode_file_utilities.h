@@ -3,7 +3,9 @@
  * Tests: flock, fsync, fdatasync, chdir, fchdir, chroot,
  *        truncate, ftruncate, utimes, futimes,
  *        mkfifo, mkfifoat, mknod, mknodat,
- *        getattrlistat, clonefileat, fclonefileat
+ *        getattrlist, fgetattrlist, getattrlistat, getattrlistbulk,
+ *        setattrlist, fsetattrlist, setattrlistat, fchownat,
+ *        clonefileat, fclonefileat
  */
 
 #ifndef MODE_FILE_UTILITIES_H
@@ -192,28 +194,103 @@ int mode_file_utilities(int argc, char *argv[]) {
     /* getattrlistat(dirfd, path, attrlist, attrbuf, size, options) */
     getattrlistat(dirfd, "test_fifo", &attr_list, attr_buf, sizeof(attr_buf),
                   0);
+
+    /* Test setattrlistat() - set attributes at directory */
+    struct timespec ts = {0};
+    attr_list.commonattr = ATTR_CMN_MODTIME;
+    setattrlistat(dirfd, "test_fifo", &attr_list, &ts, sizeof(ts), 0);
+
     close(dirfd);
   }
 
-  /* Test clonefileat() - clone file between directories */
+  /* Test clonefileat() - clone file between directories with various flags */
   /* This is a macOS-specific syscall for APFS copy-on-write clones */
   dirfd = open(test_dir, O_RDONLY | O_DIRECTORY);
   if (dirfd >= 0) {
     int src_dirfd = open("/tmp", O_RDONLY | O_DIRECTORY);
     if (src_dirfd >= 0) {
-      /* clonefileat(src_dirfd, src_name, dst_dirfd, dst_name, flags) */
+      /* Test with no flags */
       clonefileat(src_dirfd, "test_file1_clone_src", dirfd,
                   "test_file1_clone_dst", 0);
+      /* Test with CLONE_NOFOLLOW */
+      clonefileat(src_dirfd, "test_file1_clone_src2", dirfd,
+                  "test_file1_clone_dst2", CLONE_NOFOLLOW);
+      /* Test with CLONE_NOOWNERCOPY */
+      clonefileat(src_dirfd, "test_file1_clone_src3", dirfd,
+                  "test_file1_clone_dst3", CLONE_NOOWNERCOPY);
       close(src_dirfd);
     }
     close(dirfd);
   }
 
-  /* Test fclonefileat() - clone file from fd to directory */
+  /* Test fclonefileat() - clone file from fd to directory with flags */
   /* fclonefileat(srcfd, dst_dirfd, dst_name, flags) */
   dirfd = open(test_dir, O_RDONLY | O_DIRECTORY);
   if (dirfd >= 0 && fd1 >= 0) {
     fclonefileat(fd1, dirfd, "test_file1_fclone", 0);
+    fclonefileat(fd1, dirfd, "test_file1_fclone2", CLONE_NOFOLLOW);
+    close(dirfd);
+  }
+
+  /* === ATTRIBUTE SYSCALLS === */
+
+  /* Test getattrlist() - get attributes of a file */
+  {
+    struct attrlist alist;
+    char attrbuf[1024];
+    memset(&alist, 0, sizeof(alist));
+    alist.bitmapcount = ATTR_BIT_MAP_COUNT;
+    alist.commonattr = ATTR_CMN_NAME | ATTR_CMN_OBJTYPE;
+    getattrlist(test_file1, &alist, attrbuf, sizeof(attrbuf), 0);
+  }
+
+  /* Test fgetattrlist() - get attributes via fd */
+  if (fd2 >= 0) {
+    struct attrlist alist;
+    char attrbuf[1024];
+    memset(&alist, 0, sizeof(alist));
+    alist.bitmapcount = ATTR_BIT_MAP_COUNT;
+    alist.commonattr = ATTR_CMN_NAME | ATTR_CMN_OBJTYPE;
+    fgetattrlist(fd2, &alist, attrbuf, sizeof(attrbuf), 0);
+  }
+
+  /* Test setattrlist() - set attributes of a file */
+  {
+    struct attrlist alist;
+    struct timespec ts = {0};
+    memset(&alist, 0, sizeof(alist));
+    alist.bitmapcount = ATTR_BIT_MAP_COUNT;
+    alist.commonattr = ATTR_CMN_MODTIME;
+    setattrlist(test_file1, &alist, &ts, sizeof(ts), 0);
+  }
+
+  /* Test fsetattrlist() - set attributes via fd */
+  if (fd2 >= 0) {
+    struct attrlist alist;
+    struct timespec ts = {0};
+    memset(&alist, 0, sizeof(alist));
+    alist.bitmapcount = ATTR_BIT_MAP_COUNT;
+    alist.commonattr = ATTR_CMN_MODTIME;
+    fsetattrlist(fd2, &alist, &ts, sizeof(ts), 0);
+  }
+
+  /* Test fchownat() - change ownership at directory with various flags */
+  dirfd = open(test_dir, O_RDONLY | O_DIRECTORY);
+  if (dirfd >= 0) {
+    fchownat(dirfd, "test_fifo", 1000, 1000, 0);
+    fchownat(dirfd, "test_fifo", 1000, 1000, AT_SYMLINK_NOFOLLOW);
+    close(dirfd);
+  }
+
+  /* Test getattrlistbulk() - bulk get attributes */
+  dirfd = open(test_dir, O_RDONLY | O_DIRECTORY);
+  if (dirfd >= 0) {
+    struct attrlist alist;
+    char attrbuf[4096];
+    memset(&alist, 0, sizeof(alist));
+    alist.bitmapcount = ATTR_BIT_MAP_COUNT;
+    alist.commonattr = ATTR_CMN_NAME | ATTR_CMN_OBJTYPE;
+    getattrlistbulk(dirfd, &alist, attrbuf, sizeof(attrbuf), 0);
     close(dirfd);
   }
 
