@@ -261,9 +261,11 @@ def FlagsParam(flag_map: dict[int, str]) -> Param:  # noqa: N802
                 return FlagsArg(raw_value, None)
 
             if raw_value == 0:
-                return FlagsArg(0, "0")
+                # Check if there's a special symbolic name for 0 (e.g., PROT_NONE)
+                symbolic_zero = flag_map.get(0, "0")
+                return FlagsArg(0, symbolic_zero)
 
-            flags = [name for val, name in flag_map.items() if raw_value & val]
+            flags = [name for val, name in flag_map.items() if val > 0 and (raw_value & val)]
             symbolic = "|".join(flags) if flags else None
             return FlagsArg(raw_value, symbolic)
 

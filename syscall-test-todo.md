@@ -339,16 +339,16 @@ Legend:
 
 ## Memory Management Syscalls (16 total)
 
-- [ ] mmap
-- [ ] munmap
-- [ ] mprotect
-- [ ] msync
+- [x] mmap (with PROT_* and MAP_* flag decoding)
+- [x] munmap
+- [x] mprotect (with PROT_* flag decoding)
+- [x] msync (with MS_* flag decoding)
 - [ ] __msync_nocancel
-- [ ] madvise
+- [x] madvise (with MADV_* constant decoding)
 - [ ] mincore
 - [ ] minherit
-- [ ] mlock
-- [ ] munlock
+- [x] mlock
+- [x] munlock
 - [ ] mlockall
 - [ ] munlockall
 - [ ] mremap_encrypted
