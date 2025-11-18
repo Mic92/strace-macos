@@ -21,6 +21,7 @@ from strace_macos.syscalls.definitions import (
     StructParam,
     SyscallDef,
     UnsignedParam,
+    VariantParam,
 )
 from strace_macos.syscalls.symbols import (
     decode_access_mode,
@@ -34,6 +35,7 @@ from strace_macos.syscalls.symbols.file import (
     CHFLAGS_FLAGS,
     COPYFILE_FLAGS,
     FCNTL_COMMANDS,
+    FD_FLAGS,
     FSOPT_FLAGS,
     MOUNT_FLAGS,
     MSYNC_FLAGS,
@@ -42,6 +44,41 @@ from strace_macos.syscalls.symbols.file import (
     UNMOUNT_FLAGS,
     XATTR_FLAGS,
 )
+
+O_CREAT = 0x0200  # Create file if it doesn't exist
+
+
+def decode_fcntl_return(ret_value: int, all_args: list[int], *, no_abbrev: bool) -> str | int:
+    """Decode fcntl return value based on the command.
+
+    Args:
+        ret_value: The return value from fcntl
+        all_args: All raw argument values (fd, cmd, arg)
+        no_abbrev: If True, show raw hex instead of symbolic
+
+    Returns:
+        Decoded return value string or int
+    """
+    # Return as-is for errors or if we don't have cmd argument
+    if ret_value < 0 or len(all_args) < 2:
+        return ret_value
+
+    cmd = all_args[1]
+
+    # F_GETFL (3) - return file status flags
+    if cmd == 3:
+        if no_abbrev:
+            return f"0x{ret_value:x}"
+        flags_str = decode_open_flags(ret_value)
+        return f"{flags_str} (0x{ret_value:x})"
+
+    # F_GETFD (1) - return FD_CLOEXEC flag
+    if cmd == 1 and not no_abbrev and ret_value != 0 and (ret_value & 1):
+        return "FD_CLOEXEC"
+
+    # For all other commands, return as-is
+    return ret_value
+
 
 # All file I/O syscalls (162 total) with full argument definitions
 FILE_SYSCALLS: list[SyscallDef] = [
@@ -69,8 +106,13 @@ FILE_SYSCALLS: list[SyscallDef] = [
         params=[
             StringParam(),
             CustomParam(decode_open_flags),
-            OctalParam(),
+            VariantParam(
+                discriminator_index=1,  # flags argument
+                default_param=OctalParam(),
+                skip_when_not_set=O_CREAT,  # Skip mode if O_CREAT not set
+            ),
         ],
+        variadic_start=2,  # Mode argument is variadic
     ),  # 5
     SyscallDef(numbers.SYS_close, "close", params=[FileDescriptorParam()]),  # 6
     SyscallDef(numbers.SYS_link, "link", params=[StringParam(), StringParam()]),  # 9
@@ -108,8 +150,18 @@ FILE_SYSCALLS: list[SyscallDef] = [
         params=[
             FileDescriptorParam(),
             CustomParam(decode_ioctl_cmd),
-            PointerParam(),
+            VariantParam(
+                discriminator_index=1,  # request argument
+                variants={
+                    0x4004667F: StructParam("int_ptr", ParamDirection.OUT),  # FIONREAD
+                    0x40087468: StructParam("winsize", ParamDirection.OUT),  # TIOCGWINSZ
+                    0x40487413: StructParam("termios", ParamDirection.OUT),  # TIOCGETA
+                },
+                skip_for={0x20006601, 0x20006602},  # FIOCLEX, FIONCLEX - no data arg
+                default_param=PointerParam(),  # Unknown requests show as pointer
+            ),
         ],
+        variadic_start=2,  # Third argument is variadic
     ),  # 54
     SyscallDef(numbers.SYS_revoke, "revoke", params=[StringParam()]),  # 56
     SyscallDef(numbers.SYS_symlink, "symlink", params=[StringParam(), StringParam()]),  # 57
@@ -131,7 +183,23 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_fcntl,
         "fcntl",
-        params=[FileDescriptorParam(), ConstParam(FCNTL_COMMANDS), IntParam()],
+        params=[
+            FileDescriptorParam(),
+            ConstParam(FCNTL_COMMANDS),
+            VariantParam(
+                discriminator_index=1,  # cmd argument
+                variants={
+                    0: FileDescriptorParam(),  # F_DUPFD - takes fd arg
+                    67: FileDescriptorParam(),  # F_DUPFD_CLOEXEC - takes fd arg
+                    2: FlagsParam(FD_FLAGS),  # F_SETFD - FD_CLOEXEC flags
+                    4: CustomParam(decode_open_flags),  # F_SETFL - O_* file status flags
+                },
+                skip_for={1, 3},  # F_GETFD, F_GETFL - no third argument
+                default_param=IntParam(),  # Other commands take int
+            ),
+        ],
+        return_decoder=decode_fcntl_return,
+        variadic_start=2,  # Third argument is variadic
     ),  # 92
     SyscallDef(numbers.SYS_fsync, "fsync", params=[FileDescriptorParam()]),  # 95
     SyscallDef(
@@ -318,10 +386,15 @@ FILE_SYSCALLS: list[SyscallDef] = [
         params=[
             StringParam(),
             CustomParam(decode_open_flags),
-            OctalParam(),
-            IntParam(),
-            IntParam(),
+            VariantParam(
+                discriminator_index=1,  # flags argument
+                default_param=OctalParam(),
+                skip_when_not_set=O_CREAT,  # Skip mode if O_CREAT not set
+            ),
+            IntParam(),  # dataclass
+            IntParam(),  # dpflags
         ],
+        variadic_start=2,  # Mode and subsequent args are variadic
     ),  # 216
     SyscallDef(
         numbers.SYS_fsgetpath_ext,
@@ -335,10 +408,15 @@ FILE_SYSCALLS: list[SyscallDef] = [
             CustomParam(decode_dirfd),
             StringParam(),
             CustomParam(decode_open_flags),
-            OctalParam(),
-            IntParam(),
-            IntParam(),
+            VariantParam(
+                discriminator_index=2,  # flags argument
+                default_param=OctalParam(),
+                skip_when_not_set=O_CREAT,  # Skip mode if O_CREAT not set
+            ),
+            IntParam(),  # dataclass
+            IntParam(),  # dpflags
         ],
+        variadic_start=3,  # Mode and subsequent args are variadic
     ),  # 218
     SyscallDef(
         numbers.SYS_getattrlist,
@@ -523,7 +601,16 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_shm_open,
         "shm_open",
-        params=[StringParam(), IntParam(), IntParam()],
+        params=[
+            StringParam(),
+            IntParam(),
+            VariantParam(
+                discriminator_index=1,  # flags argument
+                default_param=IntParam(),
+                skip_when_not_set=O_CREAT,  # Skip mode if O_CREAT not set
+            ),
+        ],
+        variadic_start=2,  # Mode argument is variadic
     ),  # 266
     SyscallDef(numbers.SYS_shm_unlink, "shm_unlink", params=[StringParam()]),  # 267
     SyscallDef(
@@ -694,8 +781,13 @@ FILE_SYSCALLS: list[SyscallDef] = [
             CustomParam(decode_dirfd),
             StringParam(),
             CustomParam(decode_open_flags),
-            OctalParam(),
+            VariantParam(
+                discriminator_index=2,  # flags argument
+                default_param=OctalParam(),
+                skip_when_not_set=O_CREAT,  # Skip mode if O_CREAT not set
+            ),
         ],
+        variadic_start=3,  # Mode argument is variadic
     ),  # 406
     SyscallDef(
         numbers.SYS_openbyid_np,
@@ -802,8 +894,13 @@ FILE_SYSCALLS: list[SyscallDef] = [
             CustomParam(decode_dirfd),
             StringParam(),
             CustomParam(decode_open_flags),
-            OctalParam(),
+            VariantParam(
+                discriminator_index=2,  # flags argument
+                default_param=OctalParam(),
+                skip_when_not_set=O_CREAT,  # Skip mode if O_CREAT not set
+            ),
         ],
+        variadic_start=3,  # Mode argument is variadic
     ),  # 424
     SyscallDef(
         numbers.SYS_renameat,
@@ -962,7 +1059,16 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_open_nocancel,
         "__open_nocancel",
-        params=[StringParam(), CustomParam(decode_open_flags), OctalParam()],
+        params=[
+            StringParam(),
+            CustomParam(decode_open_flags),
+            VariantParam(
+                discriminator_index=1,  # flags argument
+                default_param=OctalParam(),
+                skip_when_not_set=O_CREAT,  # Skip mode if O_CREAT not set
+            ),
+        ],
+        variadic_start=2,  # Mode argument is variadic
     ),  # 398
     SyscallDef(
         numbers.SYS_close_nocancel,
@@ -1028,7 +1134,23 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_fcntl_nocancel,
         "__fcntl_nocancel",
-        params=[FileDescriptorParam(), ConstParam(FCNTL_COMMANDS), IntParam()],
+        params=[
+            FileDescriptorParam(),
+            ConstParam(FCNTL_COMMANDS),
+            VariantParam(
+                discriminator_index=1,  # cmd argument
+                variants={
+                    0: FileDescriptorParam(),  # F_DUPFD - takes fd arg
+                    67: FileDescriptorParam(),  # F_DUPFD_CLOEXEC - takes fd arg
+                    2: FlagsParam(FD_FLAGS),  # F_SETFD - FD_CLOEXEC flags
+                    4: CustomParam(decode_open_flags),  # F_SETFL - O_* file status flags
+                },
+                skip_for={1, 3},  # F_GETFD, F_GETFL - no third argument
+                default_param=IntParam(),  # Other commands take int
+            ),
+        ],
+        return_decoder=decode_fcntl_return,
+        variadic_start=2,  # Third argument is variadic
     ),  # 406
     SyscallDef(
         numbers.SYS_stat64,

@@ -514,8 +514,15 @@ class Tracer:
             else:
                 signed_ret = int(ret_value)
 
-            # Apply errno decoding if enabled and return is an error
-            if not self.no_abbrev and signed_ret < 0:
+            # Check if syscall has a custom return decoder
+            syscall_def = self.registry.lookup_by_name(event.syscall_name)
+            if syscall_def and syscall_def.return_decoder and signed_ret >= 0:
+                # Use custom return decoder
+                event.return_value = syscall_def.return_decoder(
+                    signed_ret, event.raw_args, no_abbrev=self.no_abbrev
+                )
+            elif not self.no_abbrev and signed_ret < 0:
+                # Apply errno decoding if enabled and return is an error
                 event.return_value = decode_errno(signed_ret)
             else:
                 event.return_value = signed_ret
@@ -549,7 +556,9 @@ class Tracer:
         arg_regs = self.arch.arg_registers
 
         # Use unified params system
-        return self._extract_args_with_params(frame, process, syscall_def.params, arg_regs)
+        return self._extract_args_with_params(
+            frame, process, syscall_def.params, arg_regs, syscall_def.variadic_start
+        )
 
     def _extract_args_with_params(
         self,
@@ -557,24 +566,38 @@ class Tracer:
         process: lldb.SBProcess,
         params: list[Param],
         arg_regs: list[str],
+        variadic_start: int | None = None,
     ) -> tuple[list[SyscallArg], list[int]]:
         """Extract args using the new unified Param system.
+
+        Args:
+            frame: LLDB stack frame
+            process: LLDB process
+            params: List of Param decoders
+            arg_regs: List of argument register names
+            variadic_start: Index where variadic args start (passed on stack on ARM64)
 
         Returns:
             Tuple of (decoded_args, raw_values) where raw_values are saved for exit-time decoding
         """
-        # First, read all raw register values
+        # First, read all raw register/stack values
         raw_values: list[int] = []
         for i in range(len(params)):
-            if i >= len(arg_regs):
-                raw_values.append(0)
-                continue
-
-            reg = frame.FindRegister(arg_regs[i])
-            if not reg or not reg.IsValid():
+            # Check if this is a variadic argument
+            if variadic_start is not None and i >= variadic_start:
+                # Use architecture-specific method to read variadic argument
+                variadic_index = i - variadic_start
+                value = self.arch.read_variadic_arg(frame, process, self.lldb, variadic_index)
+                raw_values.append(value if value is not None else 0)
+            elif i >= len(arg_regs):
                 raw_values.append(0)
             else:
-                raw_values.append(reg.GetValueAsUnsigned())
+                # Read from register (normal case)
+                reg = frame.FindRegister(arg_regs[i])
+                if not reg or not reg.IsValid():
+                    raw_values.append(0)
+                else:
+                    raw_values.append(reg.GetValueAsUnsigned())
 
         # Now decode each argument using its Param
         args: list[SyscallArg] = []

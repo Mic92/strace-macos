@@ -51,6 +51,54 @@ class TestSymbolicDecoding(StraceTestCase):
             f"Should find symbolic flags (O_WRONLY, O_CREAT, etc.) in open calls: {open_calls}"
         )
 
+        # Verify variadic argument handling:
+        # 1. open() with O_CREAT should have 3 arguments (path, flags, mode)
+        # 2. open() without O_CREAT should have 2 arguments (path, flags) - no mode
+        found_open_with_creat = False
+        found_open_without_creat = False
+
+        for call in open_calls:
+            # Count comma-separated arguments
+            # Extract arguments from open(arg1, arg2, ...)
+            args_match = re.search(r"open(?:at)?\((.+)\)", call)
+            if args_match:
+                args_str = args_match.group(1)
+                # Count arguments by splitting on commas (simple heuristic)
+                # This works for our test case since strings don't contain commas
+                arg_count = len([a.strip() for a in args_str.split(",") if a.strip()])
+
+                if "O_CREAT" in call:
+                    # With O_CREAT, should have mode argument (3 args for open, 4 for openat)
+                    found_open_with_creat = True
+                    if call.startswith("openat"):
+                        assert arg_count == 4, (
+                            f"openat with O_CREAT should have 4 args (dirfd, path, flags, mode), "
+                            f"got {arg_count}: {call}"
+                        )
+                    else:
+                        assert arg_count == 3, (
+                            f"open with O_CREAT should have 3 args (path, flags, mode), "
+                            f"got {arg_count}: {call}"
+                        )
+                elif "O_RDONLY" in call:
+                    # Without O_CREAT, should NOT have mode argument (2 args for open, 3 for openat)
+                    found_open_without_creat = True
+                    if call.startswith("openat"):
+                        assert arg_count == 3, (
+                            f"openat without O_CREAT should have 3 args (dirfd, path, flags), "
+                            f"got {arg_count}: {call}"
+                        )
+                    else:
+                        assert arg_count == 2, (
+                            f"open without O_CREAT should have 2 args (path, flags), "
+                            f"got {arg_count}: {call}"
+                        )
+
+        assert found_open_with_creat, f"Should find open with O_CREAT in test output: {open_calls}"
+        assert found_open_without_creat, (
+            f"Should find open without O_CREAT (O_RDONLY) in test output: {open_calls}"
+        )
+
     def test_no_abbrev_flag_disables_symbolic_decoding(self) -> None:
         """Test that --no-abbrev flag disables symbolic decoding and shows raw numbers."""
         output_file = self.temp_dir / "trace.txt"

@@ -236,3 +236,34 @@ class UnknownArg(SyscallArg):
     def __str__(self) -> str:
         """Return string representation."""
         return "?"
+
+
+class SkipArg(SyscallArg):
+    """Marker for arguments that should be skipped/not displayed.
+
+    Used for syscalls with variable argument counts (e.g., fcntl F_GETFD
+    has no third argument, so we mark it as SkipArg to omit it from output).
+    """
+
+    def __str__(self) -> str:
+        """Return empty string (should be filtered out before display)."""
+        return ""
+
+
+class IntPtrArg(SyscallArg):
+    """Argument that is an int* pointer (shows as [value] in output).
+
+    Used for ioctl commands like FIONREAD that take an int* output parameter.
+    """
+
+    def __init__(self, value: int) -> None:
+        """Initialize an int pointer argument.
+
+        Args:
+            value: The integer value read from the pointer
+        """
+        self.value = value
+
+    def __str__(self) -> str:
+        """Return string representation as [value]."""
+        return f"[{self.value}]"

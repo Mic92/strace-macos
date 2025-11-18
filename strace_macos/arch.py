@@ -37,6 +37,25 @@ class Architecture(ABC):
             Return address or None if unable to determine
         """
 
+    @abstractmethod
+    def read_variadic_arg(
+        self, frame: lldb.SBFrame, process: lldb.SBProcess, lldb_module: object, index: int
+    ) -> int | None:
+        """Read a variadic argument value.
+
+        On some platforms (macOS ARM64), variadic arguments are passed on the stack
+        instead of in registers. This method handles reading them correctly.
+
+        Args:
+            frame: LLDB stack frame
+            process: LLDB process
+            lldb_module: LLDB module for error handling
+            index: Index of the variadic argument (0 = first variadic arg)
+
+        Returns:
+            Argument value or None if unable to read
+        """
+
 
 class ARM64Architecture(Architecture):
     """ARM64 (AArch64) architecture."""
@@ -71,6 +90,40 @@ class ARM64Architecture(Architecture):
         if not lr_reg or not lr_reg.IsValid():
             return None
         return lr_reg.GetValueAsUnsigned()  # type: ignore[no-any-return]
+
+    def read_variadic_arg(
+        self, frame: lldb.SBFrame, process: lldb.SBProcess, lldb_module: object, index: int
+    ) -> int | None:
+        """Read variadic argument from stack on macOS ARM64.
+
+        On macOS ARM64, variadic arguments are passed on the stack at [sp + 0],
+        [sp + 8], [sp + 16], etc. This is different from Linux ARM64 where they
+        use registers.
+
+        Args:
+            frame: LLDB stack frame
+            process: LLDB process
+            lldb_module: LLDB module for error handling
+            index: Index of the variadic argument (0 = first variadic arg)
+
+        Returns:
+            Argument value or None if unable to read
+        """
+        sp_reg = frame.FindRegister("sp")
+        if not sp_reg or not sp_reg.IsValid():
+            return None
+
+        sp = sp_reg.GetValueAsUnsigned()
+        # Calculate offset: index * 8 bytes (each arg is 8 bytes)
+        offset = index * 8
+        stack_address = sp + offset
+
+        error = lldb_module.SBError()  # type: ignore[attr-defined]
+        data = process.ReadMemory(stack_address, 8, error)
+        if error.Fail() or not data:
+            return None
+
+        return int.from_bytes(data, byteorder="little")
 
 
 class X8664Architecture(Architecture):
@@ -110,6 +163,42 @@ class X8664Architecture(Architecture):
             return None
 
         return int.from_bytes(return_address_bytes, byteorder="little")
+
+    def read_variadic_arg(
+        self, frame: lldb.SBFrame, process: lldb.SBProcess, lldb_module: object, index: int
+    ) -> int | None:
+        """Read variadic argument on x86_64.
+
+        On x86_64, variadic arguments beyond the 6th argument are also passed on
+        the stack. However, for syscalls like fcntl/ioctl, the variadic argument
+        is typically the 3rd argument, so it's still passed in a register (rdx).
+
+        Args:
+            frame: LLDB stack frame
+            process: LLDB process
+            lldb_module: LLDB module for error handling
+            index: Index of the variadic argument (0 = first variadic arg)
+
+        Returns:
+            Argument value or None if unable to read
+        """
+        # For x86_64, variadic args beyond the 6 register args go on the stack
+        # Stack layout: args are at [rsp + 8], [rsp + 16], etc. ([rsp + 0] is return addr)
+        sp_reg = frame.FindRegister("rsp")
+        if not sp_reg or not sp_reg.IsValid():
+            return None
+
+        sp = sp_reg.GetValueAsUnsigned()
+        # Calculate offset: (index + 1) * 8 bytes (skip return address)
+        offset = (index + 1) * 8
+        stack_address = sp + offset
+
+        error = lldb_module.SBError()  # type: ignore[attr-defined]
+        data = process.ReadMemory(stack_address, 8, error)
+        if error.Fail() or not data:
+            return None
+
+        return int.from_bytes(data, byteorder="little")
 
 
 def detect_architecture(target: lldb.SBTarget) -> Architecture | None:

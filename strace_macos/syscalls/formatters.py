@@ -9,8 +9,10 @@ from strace_macos.syscalls.args import (
     FileDescriptorArg,
     FlagsArg,
     IntArg,
+    IntPtrArg,
     IovecArrayArg,
     PointerArg,
+    SkipArg,
     StringArg,
     StructArg,
     UnsignedArg,
@@ -54,6 +56,37 @@ class JSONFormatter:
     """Format syscalls as JSON Lines."""
 
     @staticmethod
+    def _format_arg_for_json(  # noqa: PLR0911
+        arg: SyscallArg,
+    ) -> dict[str, dict[str, str | int | list]] | list | str | int | None:
+        """Format a single argument for JSON output.
+
+        Args:
+            arg: The syscall argument to format
+
+        Returns:
+            JSON-serializable representation, or None to skip
+        """
+        if isinstance(arg, SkipArg):
+            return None
+        if isinstance(arg, StructArg):
+            return {"output": arg.fields}
+        if isinstance(arg, IovecArrayArg):
+            return arg.iov_list
+        if isinstance(arg, IntPtrArg):
+            return [arg.value]
+        if isinstance(arg, FileDescriptorArg):
+            return arg.fd
+        if isinstance(arg, (IntArg, FlagsArg)):
+            # Both IntArg and FlagsArg use symbolic if available, otherwise value
+            return arg.symbolic if arg.symbolic else arg.value
+        if isinstance(arg, UnsignedArg):
+            return arg.value
+        if isinstance(arg, PointerArg):
+            return f"0x{arg.address:x}"
+        return str(arg)
+
+    @staticmethod
     def format(event: SyscallEvent) -> str:
         """Format a syscall event as a JSON line.
 
@@ -63,33 +96,12 @@ class JSONFormatter:
         Returns:
             JSON string (no trailing newline)
         """
-        # Format args: preserve types for JSON
+        # Format args: preserve types for JSON, filter out SkipArg
         formatted_args: list[dict[str, dict[str, str | int | list]] | list | str | int] = []
         for arg in event.args:
-            if isinstance(arg, StructArg):
-                # For JSON, include the struct fields as a nested dict
-                formatted_args.append({"output": arg.fields})
-            elif isinstance(arg, IovecArrayArg):
-                # For JSON, include the iovec list directly
-                formatted_args.append(arg.iov_list)
-            elif isinstance(arg, FileDescriptorArg):
-                # For JSON, preserve fd as integer
-                formatted_args.append(arg.fd)
-            elif isinstance(arg, IntArg):
-                # For JSON, use symbolic if available, otherwise integer
-                formatted_args.append(arg.symbolic if arg.symbolic else arg.value)
-            elif isinstance(arg, UnsignedArg):
-                # For JSON, preserve integer values
-                formatted_args.append(arg.value)
-            elif isinstance(arg, FlagsArg):
-                # For JSON, use symbolic if available, otherwise integer
-                formatted_args.append(arg.symbolic if arg.symbolic else arg.value)
-            elif isinstance(arg, PointerArg):
-                # For JSON, format pointers as hex strings
-                formatted_args.append(f"0x{arg.address:x}")
-            else:
-                # For everything else, use string representation
-                formatted_args.append(str(arg))
+            formatted_arg = JSONFormatter._format_arg_for_json(arg)
+            if formatted_arg is not None:
+                formatted_args.append(formatted_arg)
 
         data = {
             "syscall": event.syscall_name,
@@ -114,8 +126,8 @@ class TextFormatter:
         Returns:
             Text string (no trailing newline)
         """
-        # Format arguments
-        args_str = ", ".join(str(arg) for arg in event.args)
+        # Format arguments, filtering out SkipArg
+        args_str = ", ".join(str(arg) for arg in event.args if not isinstance(arg, SkipArg))
 
         # Format return value
         if isinstance(event.return_value, str):
@@ -151,9 +163,12 @@ class ColorTextFormatter:
         Returns:
             Colored text string (no trailing newline)
         """
-        # Format arguments with type-aware coloring
+        # Format arguments with type-aware coloring, filter out SkipArg
         colored_args = []
         for arg in event.args:
+            # Skip arguments marked for omission
+            if isinstance(arg, SkipArg):
+                continue
             if isinstance(arg, StringArg):
                 colored_args.append(f"{ColorTextFormatter.STRING}{arg}{ColorTextFormatter.RESET}")
             elif isinstance(arg, PointerArg):

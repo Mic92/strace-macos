@@ -100,6 +100,7 @@ IPC_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_semctl,
         "semctl",
         params=[IntParam(), IntParam(), ConstParam(IPC_COMMANDS), PointerParam()],
+        variadic_start=3,  # Fourth argument is variadic
     ),  # 254
     SyscallDef(
         numbers.SYS_semget,

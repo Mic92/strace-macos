@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 # Runtime imports (not lldb - that's system Python only)
 from strace_macos.syscalls.args import (
@@ -13,8 +13,10 @@ from strace_macos.syscalls.args import (
     FileDescriptorArg,
     FlagsArg,
     IntArg,
+    IntPtrArg,
     IovecArrayArg,
     PointerArg,
+    SkipArg,
     StringArg,
     StructArg,
     SyscallArg,
@@ -25,6 +27,14 @@ from strace_macos.syscalls.struct_decoders.iovec import IovecArrayDecoder
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+
+class ReturnDecoder(Protocol):
+    """Protocol for return value decoder functions."""
+
+    def __call__(self, ret_value: int, all_args: list[int], *, no_abbrev: bool) -> str | int:
+        """Decode a return value based on syscall arguments."""
+        ...
 
 
 class ParamDirection(Enum):
@@ -313,7 +323,7 @@ class StructParam(Param):
     struct_name: str
     direction: ParamDirection
 
-    def decode(
+    def decode(  # noqa: PLR0911
         self,
         tracer: Any,
         process: Any,
@@ -341,6 +351,11 @@ class StructParam(Param):
         # Decode the struct from memory
         decoded_fields = decoder.decode(process, raw_value, no_abbrev=tracer.no_abbrev)
         if decoded_fields:
+            # Special case for int_ptr: return IntPtrArg instead of StructArg
+            if self.struct_name == "int_ptr" and "value" in decoded_fields:
+                value = decoded_fields["value"]
+                if isinstance(value, int):
+                    return IntPtrArg(value)
             return StructArg(decoded_fields)
 
         return PointerArg(raw_value)
@@ -444,6 +459,70 @@ class IovecParam(Param):
 
 
 @dataclass
+class VariantParam(Param):
+    """Parameter that decodes differently based on a discriminator argument.
+
+    Used for syscalls like fcntl/ioctl where one argument (discriminator)
+    determines how another argument should be decoded.
+
+    Example for fcntl(fd, cmd, arg):
+        - cmd=F_GETFD: arg doesn't exist (skip)
+        - cmd=F_SETFD: arg is FD_CLOEXEC flags
+        - cmd=F_SETFL: arg is O_* file status flags
+
+    Example for open(path, flags, mode):
+        - If O_CREAT not set in flags: mode doesn't exist (skip)
+        - If O_CREAT set: mode is used
+
+    Attributes:
+        discriminator_index: Index of the discriminator arg (e.g., fcntl cmd)
+        variants: Map from discriminator value to Param for decoding this arg
+        default_param: Fallback Param if discriminator value not in variants
+        skip_for: Set of discriminator values where this arg doesn't exist
+        skip_when_not_set: Flag bits that must be set in discriminator for arg to exist
+                          (e.g., O_CREAT for open's mode parameter)
+    """
+
+    discriminator_index: int
+    variants: dict[int, Param] = field(default_factory=dict)
+    default_param: Param | None = None
+    skip_for: set[int] = field(default_factory=set)
+    skip_when_not_set: int | None = None
+
+    def decode(
+        self,
+        tracer: Any,
+        process: Any,
+        raw_value: int,
+        all_args: list[int],
+        *,
+        at_entry: bool,
+    ) -> SyscallArg | None:
+        """Decode argument based on discriminator value."""
+        # Get discriminator value
+        if self.discriminator_index >= len(all_args):
+            return PointerArg(raw_value)
+
+        disc_value = all_args[self.discriminator_index]
+
+        # Skip if discriminator says this arg doesn't exist (exact match)
+        if disc_value in self.skip_for:
+            return SkipArg()  # Mark for removal from output
+
+        # Skip if required flag bits are not set (for open/O_CREAT etc.)
+        if self.skip_when_not_set is not None and (disc_value & self.skip_when_not_set) == 0:
+            return SkipArg()  # Flag bit not set, arg doesn't exist
+
+        # Get the right param for this discriminator value
+        param = self.variants.get(disc_value, self.default_param)
+        if param is None:
+            return PointerArg(raw_value)
+
+        # Decode using the selected param
+        return param.decode(tracer, process, raw_value, all_args, at_entry=at_entry)
+
+
+@dataclass
 class SyscallDef:
     """Definition of a single syscall.
 
@@ -453,8 +532,15 @@ class SyscallDef:
         params: List of Param decoders (one per argument).
                 E.g., [StringParam(), FlagsParam(O_FLAGS), FlagsParam(FILE_MODE)]
                 Position in list determines which argument it decodes.
+        return_decoder: Optional function to decode return value based on arguments.
+                Takes (return_value, all_args, no_abbrev) and returns string or int.
+        variadic_start: Optional index where variadic arguments start (for fcntl, ioctl).
+                On macOS ARM64, arguments at this index and beyond are passed on the
+                stack instead of in registers.
     """
 
     number: int
     name: str
     params: list[Param]
+    return_decoder: ReturnDecoder | None = None
+    variadic_start: int | None = None

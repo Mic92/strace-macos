@@ -164,28 +164,130 @@ class TestFdSyscalls(unittest.TestCase):
             new_fd = dup2_call["args"][1]
             assert new_fd == 100, f"dup2 new fd should be 100, got {new_fd}"
 
-        # Test fcntl: should decode commands
-        # Expected output: fcntl(3, F_GETFD) or fcntl(3, F_SETFD, FD_CLOEXEC)
+        # Test fcntl: should decode commands and arguments properly
         fcntl_calls = [sc for sc in syscalls if sc.get("syscall") == "fcntl"]
-        assert len(fcntl_calls) > 0, "Should have fcntl calls"
-        fcntl_call = fcntl_calls[0]
-        cmd_arg = fcntl_call["args"][1]
-        # Should decode F_GETFD, F_SETFD, F_GETFL, F_SETFL
-        assert "F_" in str(cmd_arg), f"fcntl should decode command, got {cmd_arg}"
+        assert len(fcntl_calls) >= 4, f"Should have at least 4 fcntl calls, got {len(fcntl_calls)}"
 
-        # Test ioctl: should decode requests
-        # Expected output: ioctl(3, FIOCLEX) or ioctl(3, FIONREAD, &nbytes)
-        ioctl_calls = [sc for sc in syscalls if sc.get("syscall") == "ioctl"]
-        assert len(ioctl_calls) > 0, "Should have ioctl calls"
-        ioctl_call = ioctl_calls[0]
-        request_arg = ioctl_call["args"][1]
-        # Should decode FIOCLEX, FIONCLEX, FIONREAD, TIOCGWINSZ, TIOCGETA
-        # For now, we check that it's not just a raw number
-        assert isinstance(request_arg, (str, int)), (
-            f"ioctl request should be decoded, got {type(request_arg)}"
+        # F_GETFD: should have 2 args (no third arg)
+        getfd_calls = [sc for sc in fcntl_calls if "F_GETFD" in str(sc["args"][1])]
+        assert len(getfd_calls) > 0, "Should have fcntl F_GETFD calls"
+        getfd_call = getfd_calls[0]
+        assert len(getfd_call["args"]) == 2, (
+            f"fcntl F_GETFD should have 2 args, got {len(getfd_call['args'])}: {getfd_call['args']}"
         )
-        # Ideally, we want symbolic names like "FIOCLEX" but even hex is better than nothing
-        # We'll accept either symbolic or numeric representation for now
+        assert getfd_call["args"][1] == "F_GETFD", (
+            f"fcntl cmd should be F_GETFD, got {getfd_call['args'][1]}"
+        )
+
+        # F_SETFD: should decode FD_CLOEXEC flags
+        setfd_calls = [sc for sc in fcntl_calls if "F_SETFD" in str(sc["args"][1])]
+        assert len(setfd_calls) > 0, "Should have fcntl F_SETFD calls"
+        setfd_call = setfd_calls[0]
+        assert len(setfd_call["args"]) == 3, (
+            f"fcntl F_SETFD should have 3 args, got {len(setfd_call['args'])}"
+        )
+        flags_arg = setfd_call["args"][2]
+        # Should decode FD_CLOEXEC flag
+        assert "FD_CLOEXEC" in str(flags_arg) or flags_arg == 1, (
+            f"fcntl F_SETFD should decode FD_CLOEXEC, got {flags_arg}"
+        )
+
+        # F_GETFL: should have 2 args and decode return value
+        getfl_calls = [sc for sc in fcntl_calls if "F_GETFL" in str(sc["args"][1])]
+        assert len(getfl_calls) > 0, "Should have fcntl F_GETFL calls"
+        getfl_call = getfl_calls[0]
+        assert len(getfl_call["args"]) == 2, (
+            f"fcntl F_GETFL should have 2 args, got {len(getfl_call['args'])}: {getfl_call['args']}"
+        )
+        # Return value should decode O_* flags
+        ret_val = getfl_call.get("return")
+        if isinstance(ret_val, str):
+            assert "O_" in ret_val, f"fcntl F_GETFL return should decode O_* flags, got {ret_val}"
+
+        # F_SETFL: should decode O_* file status flags
+        setfl_calls = [sc for sc in fcntl_calls if "F_SETFL" in str(sc["args"][1])]
+        assert len(setfl_calls) > 0, "Should have fcntl F_SETFL calls"
+        setfl_call = setfl_calls[0]
+        assert len(setfl_call["args"]) == 3, (
+            f"fcntl F_SETFL should have 3 args, got {len(setfl_call['args'])}"
+        )
+        flags_arg = setfl_call["args"][2]
+        # Should decode O_* flags
+        assert "O_" in str(flags_arg), f"fcntl F_SETFL should decode O_* flags, got {flags_arg}"
+
+        # Test ioctl: should decode requests and data arguments
+        ioctl_calls = [sc for sc in syscalls if sc.get("syscall") == "ioctl"]
+        assert len(ioctl_calls) >= 2, f"Should have at least 2 ioctl calls, got {len(ioctl_calls)}"
+
+        # FIOCLEX: should have 2 args (no data argument)
+        fioclex_calls = [sc for sc in ioctl_calls if "FIOCLEX" in str(sc["args"][1])]
+        assert len(fioclex_calls) > 0, "Should have ioctl FIOCLEX calls"
+        fioclex_call = fioclex_calls[0]
+        assert len(fioclex_call["args"]) == 2, (
+            f"ioctl FIOCLEX should have 2 args, got {len(fioclex_call['args'])}: {fioclex_call['args']}"
+        )
+
+        # FIONCLEX: should have 2 args (no data argument)
+        fionclex_calls = [sc for sc in ioctl_calls if "FIONCLEX" in str(sc["args"][1])]
+        assert len(fionclex_calls) > 0, "Should have ioctl FIONCLEX calls"
+        fionclex_call = fionclex_calls[0]
+        assert len(fionclex_call["args"]) == 2, (
+            f"ioctl FIONCLEX should have 2 args, got {len(fionclex_call['args'])}: {fionclex_call['args']}"
+        )
+
+        # FIONREAD: should decode int* as [value]
+        fionread_calls = [sc for sc in ioctl_calls if "FIONREAD" in str(sc["args"][1])]
+        assert len(fionread_calls) > 0, "Should have ioctl FIONREAD calls"
+        fionread_call = fionread_calls[0]
+        assert len(fionread_call["args"]) == 3, (
+            f"ioctl FIONREAD should have 3 args, got {len(fionread_call['args'])}"
+        )
+        data_arg = fionread_call["args"][2]
+        # Should be a list with single int value
+        assert isinstance(data_arg, list), (
+            f"ioctl FIONREAD data should be list, got {type(data_arg)}: {data_arg}"
+        )
+        assert len(data_arg) == 1, f"ioctl FIONREAD should have 1 value, got {len(data_arg)}"
+        assert isinstance(data_arg[0], int), (
+            f"ioctl FIONREAD value should be int, got {type(data_arg[0])}"
+        )
+
+        # TIOCGWINSZ: should decode struct winsize
+        tiocgwinsz_calls = [sc for sc in ioctl_calls if "TIOCGWINSZ" in str(sc["args"][1])]
+        assert len(tiocgwinsz_calls) > 0, "Should have ioctl TIOCGWINSZ calls"
+        tiocgwinsz_call = tiocgwinsz_calls[0]
+        assert len(tiocgwinsz_call["args"]) == 3, (
+            f"ioctl TIOCGWINSZ should have 3 args, got {len(tiocgwinsz_call['args'])}"
+        )
+        data_arg = tiocgwinsz_call["args"][2]
+        # Should be a dict with winsize fields
+        assert isinstance(data_arg, dict), (
+            f"ioctl TIOCGWINSZ data should be dict, got {type(data_arg)}"
+        )
+        # Check for struct winsize fields
+        assert "output" in data_arg, f"TIOCGWINSZ should have output, got {data_arg}"
+        winsize = data_arg["output"]
+        assert "ws_row" in winsize, f"winsize should have ws_row, got {winsize}"
+        assert "ws_col" in winsize, f"winsize should have ws_col, got {winsize}"
+
+        # TIOCGETA: should decode struct termios
+        tiocgeta_calls = [sc for sc in ioctl_calls if "TIOCGETA" in str(sc["args"][1])]
+        assert len(tiocgeta_calls) > 0, "Should have ioctl TIOCGETA calls"
+        tiocgeta_call = tiocgeta_calls[0]
+        assert len(tiocgeta_call["args"]) == 3, (
+            f"ioctl TIOCGETA should have 3 args, got {len(tiocgeta_call['args'])}"
+        )
+        data_arg = tiocgeta_call["args"][2]
+        # Should be a dict with termios fields
+        assert isinstance(data_arg, dict), (
+            f"ioctl TIOCGETA data should be dict, got {type(data_arg)}"
+        )
+        # Check for struct termios output
+        assert "output" in data_arg, f"TIOCGETA should have output, got {data_arg}"
+        # Termios fields may vary, just check it's a dict
+        assert isinstance(data_arg["output"], dict), (
+            f"TIOCGETA output should be dict, got {type(data_arg['output'])}"
+        )
 
 
 if __name__ == "__main__":
