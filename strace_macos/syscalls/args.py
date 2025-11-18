@@ -201,6 +201,35 @@ class BufferArg(SyscallArg):
         return f'"{formatted}"' if formatted else '""'
 
 
+class IovecArrayArg(SyscallArg):
+    """I/O vector array argument (for readv/writev)."""
+
+    def __init__(self, iov_list: list[dict[str, str | int]]) -> None:
+        """Initialize an iovec array argument.
+
+        Args:
+            iov_list: List of iovec dictionaries with 'iov_base' and 'iov_len' keys
+        """
+        self.iov_list = iov_list
+
+    def __str__(self) -> str:
+        """Return string representation as [{iov_base="...", iov_len=N}, ...]."""
+        if not self.iov_list:
+            return "[]"
+
+        iov_strs = []
+        for iov in self.iov_list:
+            iov_base = iov.get("iov_base", "?")
+            iov_len = iov.get("iov_len", 0)
+            # Format iov_base with quotes if it's a string
+            if isinstance(iov_base, str) and iov_base != "?":
+                iov_strs.append(f'{{iov_base="{iov_base}", iov_len={iov_len}}}')
+            else:
+                iov_strs.append(f"{{iov_base={iov_base}, iov_len={iov_len}}}")
+
+        return "[" + ", ".join(iov_strs) + "]"
+
+
 class UnknownArg(SyscallArg):
     """Unknown or unparsable argument."""
 

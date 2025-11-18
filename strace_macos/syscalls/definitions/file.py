@@ -6,7 +6,13 @@ Priority 1: Required for tests to pass.
 from __future__ import annotations
 
 from strace_macos.syscalls import numbers
-from strace_macos.syscalls.definitions import BufferParam, ParamDirection, StructParam, SyscallDef
+from strace_macos.syscalls.definitions import (
+    BufferParam,
+    IovecParam,
+    ParamDirection,
+    StructParam,
+    SyscallDef,
+)
 from strace_macos.syscalls.symbols import (
     decode_access_mode,
     decode_at_flags,
@@ -98,8 +104,18 @@ FILE_SYSCALLS: list[SyscallDef] = [
         [None, decode_fcntl_cmd, None],
     ),  # 92
     SyscallDef(numbers.SYS_fsync, "fsync", ["int"]),  # 95
-    SyscallDef(numbers.SYS_readv, "readv", ["int", "pointer", "int"]),  # 120
-    SyscallDef(numbers.SYS_writev, "writev", ["int", "pointer", "int"]),  # 121
+    SyscallDef(
+        numbers.SYS_readv,
+        "readv",
+        ["int", "pointer", "int"],
+        iovec_params=[IovecParam(1, 2, ParamDirection.OUT)],
+    ),  # 120
+    SyscallDef(
+        numbers.SYS_writev,
+        "writev",
+        ["int", "pointer", "int"],
+        iovec_params=[IovecParam(1, 2, ParamDirection.IN)],
+    ),  # 121
     SyscallDef(numbers.SYS_fchown, "fchown", ["int", "int", "int"]),  # 123
     SyscallDef(numbers.SYS_fchmod, "fchmod", ["int", "int"], [None, decode_file_mode]),  # 124
     SyscallDef(numbers.SYS_rename, "rename", ["string", "string"]),  # 128
@@ -587,8 +603,18 @@ FILE_SYSCALLS: list[SyscallDef] = [
         ["int", "pointer", "size_t", "off_t"],
         buffer_params=[BufferParam(1, 2, ParamDirection.IN)],
     ),  # 415
-    SyscallDef(numbers.SYS_readv_nocancel, "__readv_nocancel", ["int", "pointer", "int"]),  # 411
-    SyscallDef(numbers.SYS_writev_nocancel, "__writev_nocancel", ["int", "pointer", "int"]),  # 412
+    SyscallDef(
+        numbers.SYS_readv_nocancel,
+        "__readv_nocancel",
+        ["int", "pointer", "int"],
+        iovec_params=[IovecParam(1, 2, ParamDirection.OUT)],
+    ),  # 411
+    SyscallDef(
+        numbers.SYS_writev_nocancel,
+        "__writev_nocancel",
+        ["int", "pointer", "int"],
+        iovec_params=[IovecParam(1, 2, ParamDirection.IN)],
+    ),  # 412
     SyscallDef(
         numbers.SYS_fcntl_nocancel,
         "__fcntl_nocancel",
