@@ -42,6 +42,7 @@ from strace_macos.syscalls.symbols.file import (
     MSYNC_FLAGS,
     PATHCONF_NAMES,
     SEEK_CONSTANTS,
+    SRCHFS_FLAGS,
     UNMOUNT_FLAGS,
     XATTR_FLAGS,
 )
@@ -297,9 +298,15 @@ FILE_SYSCALLS: list[SyscallDef] = [
         ],
     ),  # 529
     SyscallDef(numbers.SYS_nfssvc, "nfssvc", params=[IntParam(), PointerParam()]),  # 155
-    SyscallDef(numbers.SYS_statfs, "statfs", params=[StringParam(), PointerParam()]),  # 157
     SyscallDef(
-        numbers.SYS_fstatfs, "fstatfs", params=[FileDescriptorParam(), PointerParam()]
+        numbers.SYS_statfs,
+        "statfs",
+        params=[StringParam(), StructParam("statfs", ParamDirection.OUT)],
+    ),  # 157
+    SyscallDef(
+        numbers.SYS_fstatfs,
+        "fstatfs",
+        params=[FileDescriptorParam(), StructParam("statfs", ParamDirection.OUT)],
     ),  # 158
     SyscallDef(
         numbers.SYS_unmount,
@@ -464,12 +471,12 @@ FILE_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_searchfs,
         "searchfs",
         params=[
-            StringParam(),
-            PointerParam(),
-            PointerParam(),
-            UnsignedParam(),
-            UnsignedParam(),
-            PointerParam(),
+            StringParam(),  # path
+            StructParam("fssearchblock", ParamDirection.IN),  # searchblock
+            PointerParam(),  # nummatches (unsigned long *)
+            FlagsParam(SRCHFS_FLAGS),  # options
+            UnsignedParam(),  # timeout
+            PointerParam(),  # searchstate
         ],
     ),  # 225
     SyscallDef(numbers.SYS_delete, "delete", params=[StringParam()]),  # 226
@@ -1193,11 +1200,15 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "getdirentries64",
         params=[FileDescriptorParam(), PointerParam(), UnsignedParam(), PointerParam()],
     ),  # 344
-    SyscallDef(numbers.SYS_statfs64, "statfs64", params=[StringParam(), PointerParam()]),  # 345
+    SyscallDef(
+        numbers.SYS_statfs64,
+        "statfs64",
+        params=[StringParam(), StructParam("statfs64", ParamDirection.OUT)],
+    ),  # 345
     SyscallDef(
         numbers.SYS_fstatfs64,
         "fstatfs64",
-        params=[FileDescriptorParam(), PointerParam()],
+        params=[FileDescriptorParam(), StructParam("statfs64", ParamDirection.OUT)],
     ),  # 346
     SyscallDef(
         numbers.SYS_getfsstat64,
