@@ -10,28 +10,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TextIO
 
 from strace_macos.arch import Architecture, detect_architecture
-from strace_macos.exceptions import (
-    InvalidCommandError,
-    InvalidFilterError,
-    ProcessLaunchError,
-    TargetCreationError,
-    UnsupportedArchitectureError,
-)
 from strace_macos.lldb_loader import load_lldb_module
 from strace_macos.syscalls.args import (
-    BufferArg,
-    FileDescriptorArg,
-    FlagsArg,
-    IntArg,
-    IovecArrayArg,
-    PointerArg,
-    StringArg,
-    StructArg,
     SyscallArg,
     UnknownArg,
-    UnsignedArg,
 )
-from strace_macos.syscalls.definitions import ParamDirection
 from strace_macos.syscalls.formatters import (
     ColorTextFormatter,
     JSONFormatter,
@@ -40,12 +23,12 @@ from strace_macos.syscalls.formatters import (
     TextFormatter,
 )
 from strace_macos.syscalls.registry import SyscallRegistry
-from strace_macos.syscalls.struct_decoders import get_struct_decoder
-from strace_macos.syscalls.struct_decoders.iovec import IovecArrayDecoder
 from strace_macos.syscalls.symbols import decode_errno
 
 if TYPE_CHECKING:
     import lldb
+
+    from strace_macos.syscalls.definitions import Param
 
 
 class Tracer:
@@ -111,15 +94,8 @@ class Tracer:
             filter_expr: Filter expression (e.g., "trace=open,close" or "trace=file")
         """
         if not filter_expr.startswith("trace="):
-            msg = (
-                f"Invalid filter expression: {filter_expr}\n"
-                f"Filter expressions must start with 'trace='\n"
-                f"Examples:\n"
-                f"  -e trace=open,close,read\n"
-                f"  -e trace=file\n"
-                f"  -e trace=network"
-            )
-            raise InvalidFilterError(msg)
+            msg = f"Invalid filter expression: {filter_expr}"
+            raise ValueError(msg)
 
         value = filter_expr[6:]  # Remove "trace=" prefix
 
@@ -199,12 +175,8 @@ class Tracer:
             Exit code of the traced process
         """
         if not command:
-            msg = (
-                "No command specified.\n"
-                "Usage: strace <command> [args...]\n"
-                "Example: strace /usr/local/bin/git status"
-            )
-            raise InvalidCommandError(msg)
+            msg = "Command cannot be empty"
+            raise ValueError(msg)
 
         # Open output
         self.output_handle = self._open_output()
@@ -217,39 +189,14 @@ class Tracer:
             # Create target
             target = debugger.CreateTarget(command[0])
             if not target:
-                # Check if it's a system binary
-                binary_path = Path(command[0])
-                if binary_path.exists() and str(binary_path.resolve()).startswith("/usr/bin/"):
-                    msg = (
-                        f"Cannot trace system binary: {command[0]}\n"
-                        f"System binaries in /usr/bin are protected by System Integrity Protection (SIP).\n"
-                        f"Try tracing user-installed binaries instead:\n"
-                        f"  - Homebrew binaries: /usr/local/bin/* or /opt/homebrew/bin/*\n"
-                        f"  - Nix binaries: /nix/store/*\n"
-                        f"  - User scripts or binaries in ~/bin or ~/.local/bin"
-                    )
-                elif not binary_path.exists():
-                    msg = f"Binary not found: {command[0]}"
-                else:
-                    msg = (
-                        f"Failed to create LLDB target for: {command[0]}\n"
-                        f"This may happen if:\n"
-                        f"  - The binary is not executable (check permissions)\n"
-                        f"  - The binary format is not supported\n"
-                        f"  - The binary is protected by code signing restrictions"
-                    )
-                raise TargetCreationError(msg)
+                msg = f"Failed to create target for: {command[0]}"
+                raise RuntimeError(msg)
 
             # Detect architecture
             arch = detect_architecture(target)
             if not arch:
-                msg = (
-                    f"Unsupported architecture: {target.GetTriple()}\n"
-                    f"strace-macos currently supports:\n"
-                    f"  - arm64 (Apple Silicon)\n"
-                    f"  - x86_64 (Intel) - work in progress"
-                )
-                raise UnsupportedArchitectureError(msg)
+                msg = f"Unsupported architecture: {target.GetTriple()}"
+                raise RuntimeError(msg)
             self.arch = arch
 
             # Set breakpoints for syscalls
@@ -263,16 +210,8 @@ class Tracer:
             process = target.Launch(launch_info, error)
 
             if not process or not process.IsValid():
-                error_msg = str(error) if error else "Unknown error"
-                msg = (
-                    f"Failed to launch process: {command[0]}\n"
-                    f"Error: {error_msg}\n"
-                    f"This may happen if:\n"
-                    f"  - You don't have permission to execute the binary\n"
-                    f"  - The binary requires special entitlements\n"
-                    f"  - The binary's code signature is invalid"
-                )
-                raise ProcessLaunchError(msg)
+                msg = f"Failed to launch process: {error}"
+                raise RuntimeError(msg)
 
             # Trace syscalls
             exit_code = self._trace_loop(process)
@@ -487,33 +426,33 @@ class Tracer:
             process: LLDB process
             syscall_name: Name of the syscall
         """
-        # Extract arguments
-        args = self._extract_args(frame, syscall_name)
+        # Extract arguments (both decoded and raw values)
+        args, raw_args = self._extract_args(frame, syscall_name)
 
-        # Create initial event
+        # Get return address using architecture-specific method
+        return_address = self.arch.get_return_address(frame, process, self.lldb)
+        if return_address is None:
+            # Can't get return address, emit event without return value
+            event = SyscallEvent(
+                pid=process.GetProcessID(),
+                syscall_name=syscall_name,
+                args=args,
+                return_value="?",
+                timestamp=time.time(),
+                raw_args=raw_args,
+            )
+            self._write_event(event)
+            return
+
+        # Create pending event with raw_args saved for exit-time decoding
         event = SyscallEvent(
             pid=process.GetProcessID(),
             syscall_name=syscall_name,
             args=args,
             return_value="?",
             timestamp=time.time(),
+            raw_args=raw_args,
         )
-
-        # Decode input struct parameters at entry
-        self._decode_struct_params(frame, event, at_entry=True)
-
-        # Decode input buffer parameters at entry
-        self._decode_buffer_params(frame, event, at_entry=True)
-
-        # Decode input iovec parameters at entry
-        self._decode_iovec_params(frame, event, at_entry=True)
-
-        # Get return address using architecture-specific method
-        return_address = self.arch.get_return_address(frame, process, self.lldb)
-        if return_address is None:
-            # Can't get return address, emit event without return value
-            self._write_event(event)
-            return
 
         # Set one-shot breakpoint at return address
         target = process.GetTarget()
@@ -558,422 +497,112 @@ class Tracer:
         else:
             event.return_value = "?"
 
-        # Decode output struct parameters if syscall succeeded
+        # Decode output parameters if syscall succeeded
         # Only decode output params if return value indicates success (>= 0)
         if isinstance(event.return_value, int) and event.return_value >= 0:
-            self._decode_struct_params(frame, event, at_entry=False)
-            self._decode_buffer_params(frame, event, at_entry=False)
-            self._decode_iovec_params(frame, event, at_entry=False)
+            syscall_def = self.registry.lookup_by_name(event.syscall_name)
+            if syscall_def:
+                self._decode_params_at_exit(frame, event, syscall_def.params)
 
         # Write the complete event
         self._write_event(event)
 
-    @staticmethod
-    def _to_signed_int(reg_value: int) -> int:
-        """Convert unsigned register value to signed int.
-
-        Args:
-            reg_value: Unsigned register value
-
-        Returns:
-            Signed integer value
-        """
-        return (
-            int(reg_value)
-            if reg_value < 0x8000000000000000
-            else int(reg_value) - 0x10000000000000000
-        )
-
-    def _get_symbolic_value(self, arg_type: str, reg_value: int, decoder: Any) -> str | None:
-        """Get symbolic representation of argument value.
-
-        Args:
-            arg_type: Type of the argument
-            reg_value: Raw register value
-            decoder: Decoder function or None
-
-        Returns:
-            Symbolic string or None
-        """
-        if self.no_abbrev or not decoder:
-            return None
-
-        if arg_type in ("int", "long", "pid_t"):
-            signed_val = self._to_signed_int(reg_value)
-            return decoder(signed_val)  # type: ignore[no-any-return]
-        return decoder(reg_value)  # type: ignore[no-any-return]
-
-    def _is_fd_syscall_first_arg(self, syscall_name: str, arg_index: int) -> bool:
-        """Check if this is the first argument of a file descriptor syscall.
-
-        Args:
-            syscall_name: Name of the syscall
-            arg_index: Argument index
-
-        Returns:
-            True if this is a file descriptor argument
-        """
-        fd_syscalls = (
-            "read",
-            "write",
-            "close",
-            "fstat",
-            "fcntl",
-            "ioctl",
-            "fsync",
-            "fchdir",
-            "fchown",
-            "fchmod",
-            "flock",
-            "dup",
-            "dup2",
-        )
-        return arg_index == 0 and syscall_name in fd_syscalls
-
-    def _create_int_arg(
-        self,
-        reg_value: int,
-        syscall_name: str,
-        arg_index: int,
-        decoder: Any,
-        symbolic: str | None,
-    ) -> SyscallArg:
-        """Create appropriate argument type for an integer value.
-
-        Args:
-            reg_value: Raw register value
-            syscall_name: Name of the syscall
-            arg_index: Argument index
-            decoder: Decoder function or None
-            symbolic: Symbolic representation or None
-
-        Returns:
-            Appropriate SyscallArg subclass
-        """
-        signed_val = self._to_signed_int(reg_value)
-
-        if self._is_fd_syscall_first_arg(syscall_name, arg_index):
-            return FileDescriptorArg(signed_val)
-
-        if decoder:
-            # Flags/mode argument - use FlagsArg for hex formatting
-            value = reg_value if reg_value < 0x8000000000000000 else signed_val
-            return FlagsArg(value, symbolic)
-
-        return IntArg(signed_val, symbolic)
-
-    def _create_arg_from_type(  # noqa: PLR0913
-        self,
-        arg_type: str,
-        reg_value: int,
-        syscall_name: str,
-        arg_index: int,
-        decoder: Any,
-        symbolic: str | None,
-        process: lldb.SBProcess,
-    ) -> SyscallArg:
-        """Create typed argument based on argument type.
-
-        Args:
-            arg_type: Type string from syscall definition
-            reg_value: Raw register value
-            syscall_name: Name of the syscall
-            arg_index: Argument index
-            decoder: Decoder function or None
-            symbolic: Symbolic representation or None
-            process: LLDB process for memory reading
-
-        Returns:
-            Appropriate SyscallArg subclass
-        """
-        if arg_type == "string":
-            string_val = self._read_string(process, reg_value)
-            return StringArg(string_val)
-
-        if arg_type == "int":
-            return self._create_int_arg(reg_value, syscall_name, arg_index, decoder, symbolic)
-
-        if arg_type == "pointer":
-            return PointerArg(reg_value)
-
-        if arg_type in ("size_t", "off_t", "uint32_t", "unsigned long", "unsigned int"):
-            # Decoder presence indicates flags (hex), otherwise sizes (decimal)
-            return FlagsArg(reg_value, symbolic) if decoder else UnsignedArg(reg_value)
-
-        if arg_type in ("long", "pid_t"):
-            signed_val = self._to_signed_int(reg_value)
-            return IntArg(signed_val, symbolic)
-
-        # Unknown type - use unsigned as fallback
-        return UnsignedArg(reg_value)
-
-    def _extract_args(self, frame: lldb.SBFrame, syscall_name: str) -> list[SyscallArg]:
+    def _extract_args(
+        self, frame: lldb.SBFrame, syscall_name: str
+    ) -> tuple[list[SyscallArg], list[int]]:
         """Extract syscall arguments from the stack frame.
 
-        Args:
-            frame: LLDB stack frame
-            syscall_name: Name of the syscall
-
         Returns:
-            List of typed argument objects
+            Tuple of (decoded_args, raw_values)
         """
         syscall_def = self.registry.lookup_by_name(syscall_name)
         if not syscall_def:
-            return []
+            return [], []
 
         thread = frame.GetThread()
         process = thread.GetProcess()
         arg_regs = self.arch.arg_registers
-        decoders = syscall_def.arg_decoders if syscall_def.arg_decoders else []
 
-        args: list[SyscallArg] = []
-        for i, arg_type in enumerate(syscall_def.arg_types):
+        # Use unified params system
+        return self._extract_args_with_params(frame, process, syscall_def.params, arg_regs)
+
+    def _extract_args_with_params(
+        self,
+        frame: lldb.SBFrame,
+        process: lldb.SBProcess,
+        params: list[Param],
+        arg_regs: list[str],
+    ) -> tuple[list[SyscallArg], list[int]]:
+        """Extract args using the new unified Param system.
+
+        Returns:
+            Tuple of (decoded_args, raw_values) where raw_values are saved for exit-time decoding
+        """
+        # First, read all raw register values
+        raw_values: list[int] = []
+        for i in range(len(params)):
             if i >= len(arg_regs):
-                args.append(UnknownArg())
+                raw_values.append(0)
                 continue
 
             reg = frame.FindRegister(arg_regs[i])
             if not reg or not reg.IsValid():
+                raw_values.append(0)
+            else:
+                raw_values.append(reg.GetValueAsUnsigned())
+
+        # Now decode each argument using its Param
+        args: list[SyscallArg] = []
+        for i, param in enumerate(params):
+            if i >= len(raw_values):
                 args.append(UnknownArg())
                 continue
 
-            reg_value = reg.GetValueAsUnsigned()
-            decoder = decoders[i] if i < len(decoders) else None
-            symbolic = self._get_symbolic_value(arg_type, reg_value, decoder)
-
-            arg = self._create_arg_from_type(
-                arg_type, reg_value, syscall_name, i, decoder, symbolic, process
+            decoded = param.decode(
+                tracer=self,
+                process=process,
+                raw_value=raw_values[i],
+                all_args=raw_values,
+                at_entry=True,
             )
-            args.append(arg)
+            if decoded is not None:
+                args.append(decoded)
+            else:
+                args.append(UnknownArg())
 
-        return args
+        return args, raw_values
 
-    def _decode_struct_params(
-        self, frame: lldb.SBFrame, event: SyscallEvent, *, at_entry: bool
+    def _decode_params_at_exit(
+        self, frame: lldb.SBFrame, event: SyscallEvent, params: list[Param]
     ) -> None:
-        """Decode struct parameters at syscall entry or exit.
+        """Re-decode parameters at syscall exit (for OUT params).
 
-        Args:
-            frame: LLDB stack frame
-            event: Syscall event with arguments to update
-            at_entry: True if called at syscall entry, False if at exit
+        Uses raw_args saved at entry time, since argument registers are
+        clobbered at exit time.
         """
-        # Look up syscall definition to get struct_params
-        syscall_def = self.registry.lookup_by_name(event.syscall_name)
-        if not syscall_def or not syscall_def.struct_params:
-            return
-
-        # Get the process for memory reading
         thread = frame.GetThread()
         process = thread.GetProcess()
 
-        # Decode each struct parameter based on direction
-        for struct_param in syscall_def.struct_params:
-            # Only process params in the appropriate direction
-            if at_entry and struct_param.direction != ParamDirection.IN:
-                continue
-            if not at_entry and struct_param.direction != ParamDirection.OUT:
-                continue
+        # Use saved raw values from entry time (NOT re-reading registers!)
+        raw_values = event.raw_args
 
-            if struct_param.arg_index >= len(event.args):
+        # Re-decode parameters that need exit-time decoding
+        for i, param in enumerate(params):
+            if i >= len(event.args):
                 continue
-
-            # Get the argument (should be a pointer)
-            arg = event.args[struct_param.arg_index]
-            if not isinstance(arg, PointerArg):
+            if i >= len(raw_values):
                 continue
 
-            # Skip NULL pointers
-            if arg.address == 0:
-                continue
-
-            # Get the struct decoder
-            decoder = get_struct_decoder(struct_param.struct_name)
-            if not decoder:
-                continue
-
-            # Decode the struct from memory
-            decoded_fields = decoder.decode(process, arg.address, no_abbrev=self.no_abbrev)
-            if decoded_fields:
-                # Replace the pointer arg with a struct arg
-                event.args[struct_param.arg_index] = StructArg(decoded_fields)
-
-    def _decode_buffer_params(
-        self, frame: lldb.SBFrame, event: SyscallEvent, *, at_entry: bool
-    ) -> None:
-        """Decode buffer parameters at syscall entry or exit.
-
-        Args:
-            frame: LLDB stack frame
-            event: Syscall event with arguments to update
-            at_entry: True if called at syscall entry, False if at exit
-        """
-        # Look up syscall definition to get buffer_params
-        syscall_def = self.registry.lookup_by_name(event.syscall_name)
-        if not syscall_def or not syscall_def.buffer_params:
-            return
-
-        # Get the process for memory reading
-        thread = frame.GetThread()
-        process = thread.GetProcess()
-
-        # Decode each buffer parameter based on direction
-        for buffer_param in syscall_def.buffer_params:
-            self._decode_single_buffer(buffer_param, event, process, at_entry=at_entry)
-
-    def _decode_single_buffer(  # noqa: PLR0911
-        self,
-        buffer_param: Any,
-        event: SyscallEvent,
-        process: Any,
-        *,
-        at_entry: bool,
-    ) -> None:
-        """Decode a single buffer parameter.
-
-        Args:
-            buffer_param: BufferParam definition
-            event: Syscall event with arguments to update
-            process: LLDB process for memory reading
-            at_entry: True if at syscall entry, False if at exit
-        """
-        # Only process params in the appropriate direction
-        if at_entry and buffer_param.direction != ParamDirection.IN:
-            return
-        if not at_entry and buffer_param.direction != ParamDirection.OUT:
-            return
-
-        # Validate argument indices
-        if buffer_param.arg_index >= len(event.args):
-            return
-        if buffer_param.size_arg_index >= len(event.args):
-            return
-
-        # Get buffer address and size
-        buf_address = self._get_buffer_address(event.args[buffer_param.arg_index])
-        if buf_address is None:
-            return
-
-        size = self._get_buffer_size(
-            event.args[buffer_param.size_arg_index], event.return_value, at_entry=at_entry
-        )
-        if size is None:
-            return
-
-        # Read the buffer data
-        error = self.lldb.SBError()
-        data = process.ReadMemory(buf_address, size, error)
-
-        if error.Fail() or not data:
-            return
-
-        # Replace the pointer arg with a buffer arg
-        event.args[buffer_param.arg_index] = BufferArg(data, buf_address)
-
-    def _get_buffer_address(self, arg: SyscallArg) -> int | None:
-        """Extract buffer address from argument.
-
-        Args:
-            arg: Argument that should be a pointer
-
-        Returns:
-            Buffer address, or None if invalid/NULL
-        """
-        if not isinstance(arg, PointerArg):
-            return None
-        return arg.address if arg.address != 0 else None
-
-    def _get_buffer_size(
-        self, size_arg: SyscallArg, return_value: int | str, *, at_entry: bool
-    ) -> int | None:
-        """Extract buffer size from argument.
-
-        Args:
-            size_arg: Argument containing the size
-            return_value: Syscall return value (for output buffers)
-            at_entry: True if at entry, False if at exit
-
-        Returns:
-            Buffer size, or None if invalid
-        """
-        # Get size from argument
-        if isinstance(size_arg, (IntArg, UnsignedArg)):
-            size = size_arg.value
-        else:
-            return None
-
-        # For output buffers, use return value as actual size if smaller
-        if not at_entry and isinstance(return_value, int):
-            size = min(size, return_value)
-
-        # Validate size is reasonable
-        if size < 0 or size > 65536:
-            return None
-
-        return size
-
-    def _decode_iovec_params(
-        self, frame: lldb.SBFrame, event: SyscallEvent, *, at_entry: bool
-    ) -> None:
-        """Decode iovec array parameters at syscall entry or exit.
-
-        Args:
-            frame: LLDB stack frame
-            event: Syscall event with arguments to update
-            at_entry: True if called at syscall entry, False if at exit
-        """
-        # Look up syscall definition to get iovec_params
-        syscall_def = self.registry.lookup_by_name(event.syscall_name)
-        if not syscall_def or not syscall_def.iovec_params:
-            return
-
-        # Get the process for memory reading
-        thread = frame.GetThread()
-        process = thread.GetProcess()
-
-        # Decode each iovec parameter based on direction
-        for iovec_param in syscall_def.iovec_params:
-            self._decode_single_iovec(iovec_param, event, process, at_entry=at_entry)
-
-    def _decode_single_iovec(
-        self, iovec_param: Any, event: SyscallEvent, process: Any, *, at_entry: bool
-    ) -> None:
-        """Decode a single iovec parameter.
-
-        Args:
-            iovec_param: IovecParam definition
-            event: Syscall event with arguments to update
-            process: LLDB process for memory reading
-            at_entry: True if at syscall entry, False if at exit
-        """
-        # Only process params in the appropriate direction
-        if at_entry and iovec_param.direction != ParamDirection.IN:
-            return
-        if not at_entry and iovec_param.direction != ParamDirection.OUT:
-            return
-
-        if iovec_param.arg_index >= len(event.args):
-            return
-        if iovec_param.count_arg_index >= len(event.args):
-            return
-
-        # Get the iovec array address
-        arg = event.args[iovec_param.arg_index]
-        if not isinstance(arg, PointerArg) or arg.address == 0:
-            return
-
-        # Get the count
-        count_arg = event.args[iovec_param.count_arg_index]
-        if not isinstance(count_arg, (IntArg, UnsignedArg)):
-            return
-
-        # Use the iovec decoder
-        decoder = IovecArrayDecoder()
-        iov_list = decoder.decode_array(process, arg.address, count_arg.value)
-
-        if iov_list:
-            # Replace the pointer arg with an iovec array arg
-            event.args[iovec_param.arg_index] = IovecArrayArg(iov_list)
+            decoded = param.decode(
+                tracer=self,
+                process=process,
+                raw_value=raw_values[i],
+                all_args=raw_values,
+                at_entry=False,
+            )
+            # Only update if decode returned something (not None)
+            if decoded is not None:
+                event.args[i] = decoded
 
     def _read_string(self, process: lldb.SBProcess, address: int, max_length: int = 4096) -> str:
         """Read a null-terminated string from process memory.

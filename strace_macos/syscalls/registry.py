@@ -9,6 +9,8 @@ from strace_macos.syscalls.definitions.misc import MISC_SYSCALLS
 from strace_macos.syscalls.definitions.network import NETWORK_SYSCALLS
 from strace_macos.syscalls.definitions.process import PROCESS_SYSCALLS
 from strace_macos.syscalls.definitions.signal import SIGNAL_SYSCALLS
+from strace_macos.syscalls.definitions.sysinfo import SYSINFO_SYSCALLS
+from strace_macos.syscalls.definitions.thread import THREAD_SYSCALLS
 
 if TYPE_CHECKING:
     from strace_macos.syscalls.definitions import SyscallDef
@@ -50,6 +52,14 @@ class SyscallRegistry:
 
         # Register misc syscalls
         for syscall in MISC_SYSCALLS:
+            self._register(syscall)
+
+        # Register sysinfo syscalls
+        for syscall in SYSINFO_SYSCALLS:
+            self._register(syscall)
+
+        # Register thread syscalls
+        for syscall in THREAD_SYSCALLS:
             self._register(syscall)
 
     def _register(

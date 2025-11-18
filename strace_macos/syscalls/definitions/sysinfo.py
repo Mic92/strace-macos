@@ -6,42 +6,80 @@ Priority 7: Lowest priority, includes sysctl and system information queries.
 from __future__ import annotations
 
 from strace_macos.syscalls import numbers
-from strace_macos.syscalls.definitions import SyscallDef
+from strace_macos.syscalls.definitions import (
+    IntParam,
+    PointerParam,
+    StringParam,
+    SyscallDef,
+    UnsignedParam,
+)
 
 # All system information syscalls (12 total) with full argument definitions
 SYSINFO_SYSCALLS: list[SyscallDef] = [
-    SyscallDef(numbers.SYS_getdtablesize, "getdtablesize", []),  # 89
-    SyscallDef(numbers.SYS_gethostuuid, "gethostuuid", ["pointer", "pointer"]),  # 142
+    SyscallDef(numbers.SYS_getdtablesize, "getdtablesize", params=[]),  # 89
+    SyscallDef(
+        numbers.SYS_gethostuuid,
+        "gethostuuid",
+        params=[PointerParam(), PointerParam()],
+    ),  # 142
     SyscallDef(
         numbers.SYS_sysctl,
         "sysctl",
-        ["pointer", "uint32_t", "pointer", "pointer", "pointer", "size_t"],
+        params=[
+            PointerParam(),
+            UnsignedParam(),
+            PointerParam(),
+            PointerParam(),
+            PointerParam(),
+            UnsignedParam(),
+        ],
     ),  # 202
     SyscallDef(
         numbers.SYS_sysctlbyname,
         "sysctlbyname",
-        ["string", "size_t", "pointer", "pointer", "pointer", "size_t"],
+        params=[
+            StringParam(),
+            UnsignedParam(),
+            PointerParam(),
+            PointerParam(),
+            PointerParam(),
+            UnsignedParam(),
+        ],
     ),  # 274
     SyscallDef(
         numbers.SYS_memorystatus_control,
         "memorystatus_control",
-        ["uint32_t", "int32_t", "uint32_t", "pointer", "size_t"],
+        params=[UnsignedParam(), IntParam(), UnsignedParam(), PointerParam(), UnsignedParam()],
     ),  # 337
-    SyscallDef(numbers.SYS_usrctl, "usrctl", ["uint32_t"]),  # 452
+    SyscallDef(numbers.SYS_usrctl, "usrctl", params=[UnsignedParam()]),  # 452
     SyscallDef(
         numbers.SYS_telemetry,
         "telemetry",
-        ["uint64_t", "uint64_t", "pointer", "pointer"],
+        params=[UnsignedParam(), UnsignedParam(), PointerParam(), PointerParam()],
     ),  # 464
-    SyscallDef(numbers.SYS_ledger, "ledger", ["int", "pointer", "pointer", "pointer"]),  # 478
-    SyscallDef(numbers.SYS_kas_info, "kas_info", ["int", "pointer", "pointer", "pointer"]),  # 487
+    SyscallDef(
+        numbers.SYS_ledger,
+        "ledger",
+        params=[IntParam(), PointerParam(), PointerParam(), PointerParam()],
+    ),  # 478
+    SyscallDef(
+        numbers.SYS_kas_info,
+        "kas_info",
+        params=[IntParam(), PointerParam(), PointerParam(), PointerParam()],
+    ),  # 487
     SyscallDef(
         numbers.SYS_work_interval_ctl,
         "work_interval_ctl",
-        ["uint32_t", "uint64_t", "pointer", "size_t"],
+        params=[UnsignedParam(), UnsignedParam(), PointerParam(), UnsignedParam()],
     ),  # 499
-    SyscallDef(numbers.SYS_getentropy, "getentropy", ["pointer", "size_t"]),  # 500
     SyscallDef(
-        numbers.SYS_memorystatus_available_memory, "memorystatus_available_memory", []
+        numbers.SYS_getentropy,
+        "getentropy",
+        params=[PointerParam(), UnsignedParam()],
+    ),  # 500
+    SyscallDef(
+        numbers.SYS_memorystatus_available_memory,
+        "memorystatus_available_memory",
+        params=[],
     ),  # 520
 ]

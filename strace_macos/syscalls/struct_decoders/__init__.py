@@ -7,14 +7,14 @@ Uses ctypes for clean struct definitions and generic decoding.
 
 Organized by category:
 - stat: File stat structures (struct stat, struct stat64)
-- network: Network structures (struct sockaddr, etc.)
+- network: Network structures (struct sockaddr, etc.) - future
 - time: Time structures (struct timeval, struct timespec) - future
 """
 
 from __future__ import annotations
 
 import ctypes
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from strace_macos.lldb_loader import load_lldb_module
 
@@ -54,7 +54,7 @@ class StructDecoder:
 
     def decode(
         self, process: lldb.SBProcess, address: int, *, no_abbrev: bool = False
-    ) -> dict[str, str | int | list] | None:
+    ) -> dict[str, str | int | list[Any]] | None:
         """Decode a struct from process memory.
 
         Args:
@@ -107,16 +107,16 @@ class StructDecoder:
 
     def _read_struct(
         self, process: lldb.SBProcess, address: int, struct_type: type[ctypes.Structure]
-    ) -> ctypes.Structure | None:
-        """Read a ctypes structure from process memory.
+    ) -> Any:
+        """Read a ctypes struct from process memory.
 
         Args:
             process: LLDB process to read memory from
             address: Memory address of the struct
-            struct_type: The ctypes.Structure class to read
+            struct_type: The ctypes.Structure subclass to read
 
         Returns:
-            The decoded structure object, or None if read failed
+            The struct instance, or None if read failed
         """
         lldb = load_lldb_module()
         error = lldb.SBError()
@@ -132,25 +132,14 @@ class StructDecoder:
             return None
 
     @staticmethod
-    def _format_pointer(value: int | None) -> str:
-        """Format a pointer value as NULL or hex address.
-
-        Args:
-            value: Pointer value (may be None or 0 for NULL)
-
-        Returns:
-            "NULL" if zero/None, otherwise hex address
-        """
-        if value is None or value == 0:
+    def _format_pointer(address: int) -> str:
+        """Format a pointer address for display."""
+        if address == 0:
             return "NULL"
-        return f"0x{value:x}"
+        return f"0x{address:x}"
 
 
 # Import decoders after StructDecoder is defined to avoid circular import
-from strace_macos.syscalls.struct_decoders.kevent import (  # noqa: E402
-    Kevent64Decoder,
-    KeventDecoder,
-)
 from strace_macos.syscalls.struct_decoders.msghdr import MsghdrDecoder  # noqa: E402
 from strace_macos.syscalls.struct_decoders.sockaddr import SockaddrDecoder  # noqa: E402
 from strace_macos.syscalls.struct_decoders.stat import StatDecoder  # noqa: E402
@@ -159,8 +148,6 @@ from strace_macos.syscalls.struct_decoders.stat import StatDecoder  # noqa: E402
 STRUCT_DECODERS: dict[str, StructDecoder] = {
     "stat": StatDecoder(),
     "stat64": StatDecoder(),  # Same layout on modern macOS
-    "kevent": KeventDecoder(),
-    "kevent64_s": Kevent64Decoder(),
     "sockaddr": SockaddrDecoder(),
     "msghdr": MsghdrDecoder(),
 }
@@ -179,8 +166,6 @@ def get_struct_decoder(struct_name: str) -> StructDecoder | None:
 
 
 __all__ = [
-    "Kevent64Decoder",
-    "KeventDecoder",
     "MsghdrDecoder",
     "SockaddrDecoder",
     "StatDecoder",

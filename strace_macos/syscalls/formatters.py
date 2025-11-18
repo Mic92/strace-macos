@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from strace_macos.syscalls.args import (
     FileDescriptorArg,
+    FlagsArg,
     IntArg,
     IovecArrayArg,
     PointerArg,
@@ -22,13 +23,14 @@ if TYPE_CHECKING:
 class SyscallEvent:
     """Represents a captured syscall event."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         pid: int,
         syscall_name: str,
         args: list[SyscallArg],
         return_value: int | str,
         timestamp: float,
+        raw_args: list[int] | None = None,
     ) -> None:
         """Initialize a syscall event.
 
@@ -38,12 +40,14 @@ class SyscallEvent:
             args: List of typed syscall arguments
             return_value: Return value (or "?" if not captured)
             timestamp: Timestamp in seconds since epoch
+            raw_args: Raw register values for arguments (saved at entry, used at exit)
         """
         self.pid = pid
         self.syscall_name = syscall_name
         self.args = args
         self.return_value = return_value
         self.timestamp = timestamp
+        self.raw_args = raw_args or []
 
 
 class JSONFormatter:
@@ -71,9 +75,15 @@ class JSONFormatter:
             elif isinstance(arg, FileDescriptorArg):
                 # For JSON, preserve fd as integer
                 formatted_args.append(arg.fd)
-            elif isinstance(arg, (IntArg, UnsignedArg)):
+            elif isinstance(arg, IntArg):
+                # For JSON, use symbolic if available, otherwise integer
+                formatted_args.append(arg.symbolic if arg.symbolic else arg.value)
+            elif isinstance(arg, UnsignedArg):
                 # For JSON, preserve integer values
                 formatted_args.append(arg.value)
+            elif isinstance(arg, FlagsArg):
+                # For JSON, use symbolic if available, otherwise integer
+                formatted_args.append(arg.symbolic if arg.symbolic else arg.value)
             elif isinstance(arg, PointerArg):
                 # For JSON, format pointers as hex strings
                 formatted_args.append(f"0x{arg.address:x}")

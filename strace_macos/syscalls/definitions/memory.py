@@ -6,68 +6,116 @@ Priority 4: Lower priority, implement after core functionality works.
 from __future__ import annotations
 
 from strace_macos.syscalls import numbers
-from strace_macos.syscalls.definitions import SyscallDef
-from strace_macos.syscalls.symbols import (
-    decode_madvise_advice,
-    decode_map_flags,
-    decode_mlockall_flags,
-    decode_msync_flags,
-    decode_prot_flags,
+from strace_macos.syscalls.definitions import (
+    ConstParam,
+    FlagsParam,
+    IntParam,
+    PointerParam,
+    SyscallDef,
+    UnsignedParam,
+)
+from strace_macos.syscalls.symbols.file import MSYNC_FLAGS
+from strace_macos.syscalls.symbols.memory import (
+    MADV_CONSTANTS,
+    MAP_FLAGS,
+    MCL_FLAGS,
+    PROT_FLAGS,
 )
 
-# All memory management syscalls (13 total) with full argument definitions
+# All memory management syscalls (16 total) with full argument definitions
 MEMORY_SYSCALLS: list[SyscallDef] = [
-    SyscallDef(numbers.SYS_munmap, "munmap", ["pointer", "size_t"]),  # 73
+    SyscallDef(
+        numbers.SYS_munmap,
+        "munmap",
+        params=[PointerParam(), UnsignedParam()],
+    ),  # 73
     SyscallDef(
         numbers.SYS_mprotect,
         "mprotect",
-        ["pointer", "size_t", "int"],
-        [None, None, decode_prot_flags],
+        params=[PointerParam(), UnsignedParam(), FlagsParam(PROT_FLAGS)],
     ),  # 74
     SyscallDef(
         numbers.SYS_madvise,
         "madvise",
-        ["pointer", "size_t", "int"],
-        [None, None, decode_madvise_advice],
+        params=[PointerParam(), UnsignedParam(), ConstParam(MADV_CONSTANTS)],
     ),  # 75
-    SyscallDef(numbers.SYS_mincore, "mincore", ["pointer", "size_t", "pointer"]),  # 78
+    SyscallDef(
+        numbers.SYS_mincore,
+        "mincore",
+        params=[PointerParam(), UnsignedParam(), PointerParam()],
+    ),  # 78
     SyscallDef(
         numbers.SYS_mmap,
         "mmap",
-        ["pointer", "size_t", "int", "int", "int", "off_t"],
-        [None, None, decode_prot_flags, decode_map_flags, None, None],
+        params=[
+            PointerParam(),
+            UnsignedParam(),
+            FlagsParam(PROT_FLAGS),
+            FlagsParam(MAP_FLAGS),
+            IntParam(),
+            UnsignedParam(),
+        ],
     ),  # 197
-    SyscallDef(numbers.SYS_mlock, "mlock", ["pointer", "size_t"]),  # 203
-    SyscallDef(numbers.SYS_munlock, "munlock", ["pointer", "size_t"]),  # 204
-    SyscallDef(numbers.SYS_minherit, "minherit", ["pointer", "size_t", "int"]),  # 250
-    SyscallDef(numbers.SYS_shared_region_check_np, "shared_region_check_np", ["pointer"]),  # 294
+    SyscallDef(
+        numbers.SYS_mlock,
+        "mlock",
+        params=[PointerParam(), UnsignedParam()],
+    ),  # 203
+    SyscallDef(
+        numbers.SYS_munlock,
+        "munlock",
+        params=[PointerParam(), UnsignedParam()],
+    ),  # 204
+    SyscallDef(
+        numbers.SYS_minherit,
+        "minherit",
+        params=[PointerParam(), UnsignedParam(), IntParam()],
+    ),  # 250
+    SyscallDef(
+        numbers.SYS_shared_region_check_np,
+        "shared_region_check_np",
+        params=[PointerParam()],
+    ),  # 294
     SyscallDef(
         numbers.SYS_vm_pressure_monitor,
         "vm_pressure_monitor",
-        ["int", "int", "pointer"],
+        params=[IntParam(), IntParam(), PointerParam()],
     ),  # 296
-    SyscallDef(numbers.SYS_mlockall, "mlockall", ["int"], [decode_mlockall_flags]),  # 324
-    SyscallDef(numbers.SYS_munlockall, "munlockall", []),  # 325
+    SyscallDef(
+        numbers.SYS_mlockall,
+        "mlockall",
+        params=[FlagsParam(MCL_FLAGS)],
+    ),  # 324
+    SyscallDef(
+        numbers.SYS_munlockall,
+        "munlockall",
+        params=[],
+    ),  # 325
     SyscallDef(
         numbers.SYS_shared_region_map_and_slide_2_np,
         "shared_region_map_and_slide_2_np",
-        ["uint32_t", "uint32_t", "pointer", "uint32_t", "pointer", "uint64_t"],
+        params=[
+            UnsignedParam(),
+            UnsignedParam(),
+            PointerParam(),
+            UnsignedParam(),
+            PointerParam(),
+            UnsignedParam(),
+        ],
     ),  # 536
     SyscallDef(
         numbers.SYS_msync_nocancel,
         "__msync_nocancel",
-        ["pointer", "size_t", "int"],
-        [None, None, decode_msync_flags],
+        params=[PointerParam(), UnsignedParam(), FlagsParam(MSYNC_FLAGS)],
     ),  # 405
     SyscallDef(
         numbers.SYS_msync,
         "msync",
-        ["pointer", "size_t", "int"],
-        [None, None, decode_msync_flags],
+        params=[PointerParam(), UnsignedParam(), FlagsParam(MSYNC_FLAGS)],
     ),  # 65 (from file.py but is memory op)
     SyscallDef(
         numbers.SYS_mremap_encrypted,
         "mremap_encrypted",
-        ["pointer", "size_t", "uint32_t", "uint32_t", "uint32_t"],
+        params=[PointerParam(), UnsignedParam(), UnsignedParam(), UnsignedParam(), UnsignedParam()],
     ),  # 489 (also in file.py, but primarily memory op)
 ]

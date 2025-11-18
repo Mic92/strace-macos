@@ -6,34 +6,56 @@ Priority 5: Lower priority, implement after core functionality works.
 from __future__ import annotations
 
 from strace_macos.syscalls import numbers
-from strace_macos.syscalls.definitions import SyscallDef
+from strace_macos.syscalls.definitions import (
+    IntParam,
+    PointerParam,
+    StringParam,
+    SyscallDef,
+    UnsignedParam,
+)
 
 # All thread management syscalls (10 total) with full argument definitions
 THREAD_SYSCALLS: list[SyscallDef] = [
-    SyscallDef(numbers.SYS___pthread_canceled, "__pthread_canceled", ["int"]),  # 333
-    SyscallDef(numbers.SYS___pthread_markcancel, "__pthread_markcancel", ["int"]),  # 332
-    SyscallDef(numbers.SYS___pthread_chdir, "__pthread_chdir", ["string"]),  # 348
-    SyscallDef(numbers.SYS___pthread_fchdir, "__pthread_fchdir", ["int"]),  # 349
+    SyscallDef(
+        numbers.SYS___pthread_canceled,
+        "__pthread_canceled",
+        params=[IntParam()],
+    ),  # 333
+    SyscallDef(
+        numbers.SYS___pthread_markcancel,
+        "__pthread_markcancel",
+        params=[IntParam()],
+    ),  # 332
+    SyscallDef(
+        numbers.SYS___pthread_chdir,
+        "__pthread_chdir",
+        params=[StringParam()],
+    ),  # 348
+    SyscallDef(
+        numbers.SYS___pthread_fchdir,
+        "__pthread_fchdir",
+        params=[IntParam()],
+    ),  # 349
     SyscallDef(
         numbers.SYS_bsdthread_create,
         "bsdthread_create",
-        ["pointer", "pointer", "pointer", "pointer", "uint32_t"],
+        params=[PointerParam(), PointerParam(), PointerParam(), PointerParam(), UnsignedParam()],
     ),  # 360
     SyscallDef(
         numbers.SYS_bsdthread_terminate,
         "bsdthread_terminate",
-        ["pointer", "size_t", "uint32_t", "uint32_t"],
+        params=[PointerParam(), UnsignedParam(), UnsignedParam(), UnsignedParam()],
     ),  # 361
     SyscallDef(
         numbers.SYS_bsdthread_register,
         "bsdthread_register",
-        ["pointer", "pointer", "int"],
+        params=[PointerParam(), PointerParam(), IntParam()],
     ),  # 366
     SyscallDef(
         numbers.SYS_bsdthread_ctl,
         "bsdthread_ctl",
-        ["pointer", "uint64_t", "pointer", "pointer"],
+        params=[PointerParam(), UnsignedParam(), PointerParam(), PointerParam()],
     ),  # 449
-    SyscallDef(numbers.SYS_thread_selfusage, "thread_selfusage", []),  # 475
-    SyscallDef(numbers.SYS_thread_selfid, "thread_selfid", []),  # 539
+    SyscallDef(numbers.SYS_thread_selfusage, "thread_selfusage", params=[]),  # 475
+    SyscallDef(numbers.SYS_thread_selfid, "thread_selfid", params=[]),  # 539
 ]

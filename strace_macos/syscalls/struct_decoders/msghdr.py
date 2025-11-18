@@ -70,25 +70,28 @@ class MsghdrDecoder(StructDecoder):
         result: dict[str, str | int | list] = {}
 
         # Decode msg_name (optional sockaddr)
-        result["msg_name"] = self._format_pointer(msghdr.msg_name)
-        result["msg_namelen"] = msghdr.msg_namelen if msghdr.msg_name else 0
+        msg_name = msghdr.msg_name or 0
+        result["msg_name"] = self._format_pointer(msg_name)
+        result["msg_namelen"] = msghdr.msg_namelen if msg_name else 0
 
         # Decode msg_iov (I/O vector array)
-        if msghdr.msg_iov is None or msghdr.msg_iov == 0 or msghdr.msg_iovlen == 0:
+        msg_iov = msghdr.msg_iov or 0
+        if msg_iov == 0 or msghdr.msg_iovlen == 0:
             result["msg_iov"] = "NULL"
             result["msg_iovlen"] = 0
         else:
-            iov_array = self._decode_iovec_array(process, msghdr.msg_iov, msghdr.msg_iovlen)
+            iov_array = self._decode_iovec_array(process, msg_iov, msghdr.msg_iovlen)
             if iov_array:
                 result["msg_iov"] = iov_array
                 result["msg_iovlen"] = msghdr.msg_iovlen
             else:
-                result["msg_iov"] = self._format_pointer(msghdr.msg_iov)
+                result["msg_iov"] = self._format_pointer(msg_iov)
                 result["msg_iovlen"] = msghdr.msg_iovlen
 
         # Decode msg_control (ancillary data)
-        result["msg_control"] = self._format_pointer(msghdr.msg_control)
-        result["msg_controllen"] = msghdr.msg_controllen if msghdr.msg_control else 0
+        msg_control = msghdr.msg_control or 0
+        result["msg_control"] = self._format_pointer(msg_control)
+        result["msg_controllen"] = msghdr.msg_controllen if msg_control else 0
 
         # msg_flags
         if msghdr.msg_flags != 0:
