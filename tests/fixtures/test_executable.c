@@ -3,6 +3,7 @@
  * This avoids issues with debugging system binaries on macOS.
  */
 
+#include "mode_fd_ops.h"
 #include "mode_file_ops.h"
 #include "mode_misc.h"
 #include "mode_network.h"

@@ -1,9 +1,5 @@
 # macOS strace Syscall Test Coverage
 
-**Total Syscalls Defined:** 429
-**Tested Syscalls:** ~7-10
-**Coverage:** ~2-6%
-
 Legend:
 - [x] = Has explicit test coverage
 - [ ] = Not yet tested

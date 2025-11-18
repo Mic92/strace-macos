@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from strace_macos.syscalls.args import (
     FileDescriptorArg,
     IntArg,
+    IovecArrayArg,
     PointerArg,
     StringArg,
     StructArg,
@@ -58,13 +59,26 @@ class JSONFormatter:
         Returns:
             JSON string (no trailing newline)
         """
-        # Format args: use dict for StructArg, str for others
-        formatted_args: list[dict[str, dict[str, str | int | list]] | str] = []
+        # Format args: preserve types for JSON
+        formatted_args: list[dict[str, dict[str, str | int | list]] | list | str | int] = []
         for arg in event.args:
             if isinstance(arg, StructArg):
                 # For JSON, include the struct fields as a nested dict
                 formatted_args.append({"output": arg.fields})
+            elif isinstance(arg, IovecArrayArg):
+                # For JSON, include the iovec list directly
+                formatted_args.append(arg.iov_list)
+            elif isinstance(arg, FileDescriptorArg):
+                # For JSON, preserve fd as integer
+                formatted_args.append(arg.fd)
+            elif isinstance(arg, (IntArg, UnsignedArg)):
+                # For JSON, preserve integer values
+                formatted_args.append(arg.value)
+            elif isinstance(arg, PointerArg):
+                # For JSON, format pointers as hex strings
+                formatted_args.append(f"0x{arg.address:x}")
             else:
+                # For everything else, use string representation
                 formatted_args.append(str(arg))
 
         data = {

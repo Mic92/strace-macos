@@ -48,6 +48,21 @@ class BufferParam:
 
 
 @dataclass
+class IovecParam:
+    """Definition of an iovec array parameter to decode.
+
+    Attributes:
+        arg_index: Index of the iovec array argument (0-based)
+        count_arg_index: Index of the argument containing the iovec count
+        direction: Whether this is an input or output iovec array
+    """
+
+    arg_index: int
+    count_arg_index: int
+    direction: ParamDirection
+
+
+@dataclass
 class SyscallDef:
     """Definition of a single syscall.
 
@@ -61,6 +76,8 @@ class SyscallDef:
                        E.g., [StructParam(1, "sockaddr", ParamDirection.IN)] for bind
         buffer_params: Optional list of buffer parameters to decode.
                        E.g., [BufferParam(1, 2, ParamDirection.OUT)] for read(fd, buf, count)
+        iovec_params: Optional list of iovec array parameters to decode.
+                      E.g., [IovecParam(1, 2, ParamDirection.OUT)] for readv(fd, iov, iovcnt)
     """
 
     number: int
@@ -69,3 +86,4 @@ class SyscallDef:
     arg_decoders: list[Callable[[int], str] | None] | None = field(default=None)
     struct_params: list[StructParam] | None = field(default=None)
     buffer_params: list[BufferParam] | None = field(default=None)
+    iovec_params: list[IovecParam] | None = field(default=None)

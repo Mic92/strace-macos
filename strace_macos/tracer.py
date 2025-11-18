@@ -23,6 +23,7 @@ from strace_macos.syscalls.args import (
     FileDescriptorArg,
     FlagsArg,
     IntArg,
+    IovecArrayArg,
     PointerArg,
     StringArg,
     StructArg,
@@ -40,6 +41,7 @@ from strace_macos.syscalls.formatters import (
 )
 from strace_macos.syscalls.registry import SyscallRegistry
 from strace_macos.syscalls.struct_decoders import get_struct_decoder
+from strace_macos.syscalls.struct_decoders.iovec import IovecArrayDecoder
 from strace_macos.syscalls.symbols import decode_errno
 
 if TYPE_CHECKING:
@@ -503,6 +505,9 @@ class Tracer:
         # Decode input buffer parameters at entry
         self._decode_buffer_params(frame, event, at_entry=True)
 
+        # Decode input iovec parameters at entry
+        self._decode_iovec_params(frame, event, at_entry=True)
+
         # Get return address using architecture-specific method
         return_address = self.arch.get_return_address(frame, process, self.lldb)
         if return_address is None:
@@ -558,6 +563,7 @@ class Tracer:
         if isinstance(event.return_value, int) and event.return_value >= 0:
             self._decode_struct_params(frame, event, at_entry=False)
             self._decode_buffer_params(frame, event, at_entry=False)
+            self._decode_iovec_params(frame, event, at_entry=False)
 
         # Write the complete event
         self._write_event(event)
@@ -905,6 +911,69 @@ class Tracer:
             return None
 
         return size
+
+    def _decode_iovec_params(
+        self, frame: lldb.SBFrame, event: SyscallEvent, *, at_entry: bool
+    ) -> None:
+        """Decode iovec array parameters at syscall entry or exit.
+
+        Args:
+            frame: LLDB stack frame
+            event: Syscall event with arguments to update
+            at_entry: True if called at syscall entry, False if at exit
+        """
+        # Look up syscall definition to get iovec_params
+        syscall_def = self.registry.lookup_by_name(event.syscall_name)
+        if not syscall_def or not syscall_def.iovec_params:
+            return
+
+        # Get the process for memory reading
+        thread = frame.GetThread()
+        process = thread.GetProcess()
+
+        # Decode each iovec parameter based on direction
+        for iovec_param in syscall_def.iovec_params:
+            self._decode_single_iovec(iovec_param, event, process, at_entry=at_entry)
+
+    def _decode_single_iovec(
+        self, iovec_param: Any, event: SyscallEvent, process: Any, *, at_entry: bool
+    ) -> None:
+        """Decode a single iovec parameter.
+
+        Args:
+            iovec_param: IovecParam definition
+            event: Syscall event with arguments to update
+            process: LLDB process for memory reading
+            at_entry: True if at syscall entry, False if at exit
+        """
+        # Only process params in the appropriate direction
+        if at_entry and iovec_param.direction != ParamDirection.IN:
+            return
+        if not at_entry and iovec_param.direction != ParamDirection.OUT:
+            return
+
+        if iovec_param.arg_index >= len(event.args):
+            return
+        if iovec_param.count_arg_index >= len(event.args):
+            return
+
+        # Get the iovec array address
+        arg = event.args[iovec_param.arg_index]
+        if not isinstance(arg, PointerArg) or arg.address == 0:
+            return
+
+        # Get the count
+        count_arg = event.args[iovec_param.count_arg_index]
+        if not isinstance(count_arg, (IntArg, UnsignedArg)):
+            return
+
+        # Use the iovec decoder
+        decoder = IovecArrayDecoder()
+        iov_list = decoder.decode_array(process, arg.address, count_arg.value)
+
+        if iov_list:
+            # Replace the pointer arg with an iovec array arg
+            event.args[iovec_param.arg_index] = IovecArrayArg(iov_list)
 
     def _read_string(self, process: lldb.SBProcess, address: int, max_length: int = 4096) -> str:
         """Read a null-terminated string from process memory.
