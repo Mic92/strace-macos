@@ -5,21 +5,31 @@
  *        mkfifo, mkfifoat, mknod, mknodat,
  *        getattrlist, fgetattrlist, getattrlistat, getattrlistbulk,
  *        setattrlist, fsetattrlist, setattrlistat, fchownat,
- *        clonefileat, fclonefileat
+ *        clonefileat, fclonefileat,
+ *        statfs, fstatfs, getfsstat,
+ *        getxattr, fgetxattr, setxattr, fsetxattr, fremovexattr,
+ *        fsctl, ffsctl, fsgetpath, copyfile, searchfs, exchangedata,
+ *        undelete, revoke
  */
 
 #ifndef MODE_FILE_UTILITIES_H
 #define MODE_FILE_UTILITIES_H
 
+#include <copyfile.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/attr.h>
 #include <sys/clonefile.h>
+#include <sys/dirent.h>
 #include <sys/file.h>
+#include <sys/fsgetpath.h>
+#include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <sys/xattr.h>
 #include <unistd.h>
 
 int mode_file_utilities(int argc, char *argv[]) {
@@ -293,6 +303,129 @@ int mode_file_utilities(int argc, char *argv[]) {
     getattrlistbulk(dirfd, &alist, attrbuf, sizeof(attrbuf), 0);
     close(dirfd);
   }
+
+  /* === FILESYSTEM STATISTICS SYSCALLS === */
+
+  /* Test statfs() - get filesystem statistics */
+  {
+    struct statfs fs_stat;
+    statfs("/", &fs_stat);
+    statfs("/tmp", &fs_stat);
+  }
+
+  /* Test fstatfs() - get filesystem stats via fd */
+  if (fd1 >= 0) {
+    struct statfs fs_stat;
+    fstatfs(fd1, &fs_stat);
+  }
+
+  /* Test getfsstat() - get list of all mounted filesystems */
+  {
+    struct statfs fs_buf[10];
+    getfsstat(fs_buf, sizeof(fs_buf), MNT_NOWAIT);
+    getfsstat(fs_buf, sizeof(fs_buf), MNT_WAIT);
+  }
+
+  /* === EXTENDED ATTRIBUTE SYSCALLS === */
+
+  /* Test getxattr() - get extended attribute value */
+  {
+    char value_buf[256];
+    getxattr(test_file1, "com.apple.test", value_buf, sizeof(value_buf), 0, 0);
+    getxattr(test_file1, "com.apple.test", value_buf, sizeof(value_buf), 0,
+             XATTR_NOFOLLOW);
+  }
+
+  /* Test fgetxattr() - get extended attribute via fd */
+  if (fd1 >= 0) {
+    char value_buf[256];
+    fgetxattr(fd1, "com.apple.test", value_buf, sizeof(value_buf), 0, 0);
+    fgetxattr(fd1, "com.apple.test", value_buf, sizeof(value_buf), 0,
+              XATTR_SHOWCOMPRESSION);
+  }
+
+  /* Test setxattr() - set extended attribute */
+  {
+    const char *test_value = "test_value";
+    setxattr(test_file1, "com.apple.testattr", test_value, strlen(test_value),
+             0, 0);
+    setxattr(test_file1, "com.apple.testattr", test_value, strlen(test_value),
+             0, XATTR_CREATE);
+    setxattr(test_file1, "com.apple.testattr2", test_value, strlen(test_value),
+             0, XATTR_REPLACE);
+  }
+
+  /* Test fsetxattr() - set extended attribute via fd */
+  if (fd1 >= 0) {
+    const char *test_value = "test_value";
+    fsetxattr(fd1, "com.apple.testattr", test_value, strlen(test_value), 0, 0);
+    fsetxattr(fd1, "com.apple.testattr", test_value, strlen(test_value), 0,
+              XATTR_NOFOLLOW);
+  }
+
+  /* Test fremovexattr() - remove extended attribute via fd */
+  if (fd1 >= 0) {
+    fremovexattr(fd1, "com.apple.testattr", 0);
+    fremovexattr(fd1, "com.apple.testattr", XATTR_NOFOLLOW);
+  }
+
+  /* Note: getdirentries/getdirentries64 don't have proper headers on modern macOS */
+
+  /* === FILE SYSTEM CONTROL SYSCALLS === */
+
+  /* Test fsctl() - file system control operation */
+  fsctl(test_file1, 0, NULL, 0);
+
+  /* Test ffsctl() - file system control via fd */
+  if (fd1 >= 0) {
+    ffsctl(fd1, 0, NULL, 0);
+  }
+
+  /* Test fsgetpath() - get path from fsid/objid */
+  {
+    char path_buf[1024];
+    fsgetpath(path_buf, sizeof(path_buf), NULL, 0);
+  }
+
+  /* Test copyfile() - copy file with copy-on-write */
+  copyfile(test_file1, test_file2, 0, COPYFILE_DATA);
+  copyfile(test_file1, test_file2, 0, COPYFILE_XATTR);
+
+  /* Test searchfs() - search filesystem for attributes */
+  {
+    struct fssearchblock search_block;
+    struct searchstate search_state;
+    unsigned long num_matches = 1;
+    char return_buf[4096];
+    struct attrlist return_attrs;
+
+    memset(&search_block, 0, sizeof(search_block));
+    memset(&search_state, 0, sizeof(search_state));
+    memset(&return_attrs, 0, sizeof(return_attrs));
+
+    return_attrs.bitmapcount = ATTR_BIT_MAP_COUNT;
+    return_attrs.commonattr = ATTR_CMN_NAME;
+
+    search_block.returnattrs = &return_attrs;
+    search_block.returnbuffer = return_buf;
+    search_block.returnbuffersize = sizeof(return_buf);
+    search_block.maxmatches = 1;
+
+    searchfs("/tmp", &search_block, &num_matches, SRCHFS_MATCHFILES, 0,
+             &search_state);
+  }
+
+  /* Test exchangedata() - atomically swap file data */
+  exchangedata(test_file1, test_file2, 0);
+
+  /* Note: delete() conflicts with C++ keyword - skipped */
+
+  /* Test undelete() - undelete a file */
+  /* Note: This will fail on modern macOS but tests the syscall */
+  undelete(test_file1);
+
+  /* Test revoke() - revoke file access */
+  revoke(test_file1);
 
   /* === CLEANUP === */
 
