@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from . import make_const_decoder, make_flag_decoder
-
 # wait4/waitpid options
 WAIT_OPTIONS: dict[int, str] = {
     0x00000001: "WNOHANG",
@@ -62,16 +60,3 @@ SIG_HOW: dict[int, str] = {
     2: "SIG_UNBLOCK",
     3: "SIG_SETMASK",
 }
-
-# Import helpers
-
-# Auto-generate const decoders
-decode_idtype = make_const_decoder(IDTYPE_CONSTANTS)
-decode_prio_which = make_const_decoder(PRIO_WHICH)
-decode_rusage_who = make_const_decoder(RUSAGE_WHO)
-decode_rlimit_resource = make_const_decoder(RLIMIT_RESOURCES)
-decode_sigprocmask_how = make_const_decoder(SIG_HOW)
-
-# Auto-generate flag decoders
-decode_wait_options = make_flag_decoder(WAIT_OPTIONS)
-decode_waitid_options = make_flag_decoder(WAITID_OPTIONS)

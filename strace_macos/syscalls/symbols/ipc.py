@@ -2,11 +2,6 @@
 
 from __future__ import annotations
 
-from strace_macos.syscalls.symbols._helpers import (
-    make_const_decoder,
-    make_flag_decoder,
-)
-
 # IPC flags for semget/msgget/shmget
 IPC_FLAGS: dict[int, str] = {
     0x200: "IPC_CREAT",
@@ -34,12 +29,6 @@ SHM_FLAGS: dict[int, str] = {
     0x1000: "SHM_RDONLY",
     0x2000: "SHM_RND",
 }
-
-# Auto-generate const decoders
-decode_ipc_cmd = make_const_decoder(IPC_COMMANDS)
-
-# Auto-generate flag decoders
-decode_shm_flags = make_flag_decoder(SHM_FLAGS)
 
 
 def decode_ipc_flags(value: int) -> str:

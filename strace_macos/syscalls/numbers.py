@@ -459,4 +459,3 @@ SYS_mknodat = 554
 SYS_ungraftdmg = 555
 SYS_coalition_policy_set = 556
 SYS_coalition_policy_get = 557
-SYS_MAXSYSCALL = 558

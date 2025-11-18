@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from . import make_const_decoder, make_flag_decoder
-
 # Address family constants (AF_*)
 AF_CONSTANTS: dict[int, str] = {
     0: "AF_UNSPEC",
@@ -149,16 +147,3 @@ SHUT_CONSTANTS: dict[int, str] = {
     1: "SHUT_WR",
     2: "SHUT_RDWR",
 }
-
-# Import helpers
-
-# Auto-generate const decoders
-decode_socket_family = make_const_decoder(AF_CONSTANTS)
-decode_socket_type = make_const_decoder(SOCK_CONSTANTS)
-decode_socket_protocol = make_const_decoder(IPPROTO_CONSTANTS)
-decode_sol_level = make_const_decoder(SOL_CONSTANTS)
-decode_so_option = make_const_decoder(SO_OPTIONS)
-decode_shutdown_how = make_const_decoder(SHUT_CONSTANTS)
-
-# Auto-generate flag decoders
-decode_msg_flags = make_flag_decoder(MSG_FLAGS)

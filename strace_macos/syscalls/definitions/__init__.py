@@ -7,10 +7,24 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
+# Runtime imports (not lldb - that's system Python only)
+from strace_macos.syscalls.args import (
+    BufferArg,
+    FileDescriptorArg,
+    FlagsArg,
+    IntArg,
+    IovecArrayArg,
+    PointerArg,
+    StringArg,
+    StructArg,
+    SyscallArg,
+    UnsignedArg,
+)
+from strace_macos.syscalls.struct_decoders import get_struct_decoder
+from strace_macos.syscalls.struct_decoders.iovec import IovecArrayDecoder
+
 if TYPE_CHECKING:
     from collections.abc import Callable
-
-    from strace_macos.syscalls.args import SyscallArg
 
 
 class ParamDirection(Enum):
@@ -109,16 +123,14 @@ class IntParam(Param):
 
     def decode(
         self,
-        tracer: Any,
-        process: Any,
+        tracer: Any,  # noqa: ARG002
+        process: Any,  # noqa: ARG002
         raw_value: int,
-        all_args: list[int],
+        all_args: list[int],  # noqa: ARG002
         *,
-        at_entry: bool,
+        at_entry: bool,  # noqa: ARG002
     ) -> SyscallArg:
         """Decode signed integer to IntArg."""
-        from strace_macos.syscalls.args import IntArg
-
         signed_val = self._to_signed_int(raw_value)
         return IntArg(signed_val)
 
@@ -128,16 +140,14 @@ class UnsignedParam(Param):
 
     def decode(
         self,
-        tracer: Any,
-        process: Any,
+        tracer: Any,  # noqa: ARG002
+        process: Any,  # noqa: ARG002
         raw_value: int,
-        all_args: list[int],
+        all_args: list[int],  # noqa: ARG002
         *,
-        at_entry: bool,
+        at_entry: bool,  # noqa: ARG002
     ) -> SyscallArg:
         """Decode unsigned integer to UnsignedArg."""
-        from strace_macos.syscalls.args import UnsignedArg
-
         return UnsignedArg(raw_value)
 
 

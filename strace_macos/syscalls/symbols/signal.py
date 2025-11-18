@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from . import make_const_decoder
-
 # Signal numbers
 SIGNAL_NUMBERS: dict[int, str] = {
     1: "SIGHUP",
@@ -38,8 +36,3 @@ SIGNAL_NUMBERS: dict[int, str] = {
     30: "SIGUSR1",
     31: "SIGUSR2",
 }
-
-# Import helpers
-
-# Auto-generate decoder
-decode_signal = make_const_decoder(SIGNAL_NUMBERS)

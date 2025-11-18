@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from . import make_const_decoder, make_flag_decoder
-
 # mmap/mprotect protection flags
 PROT_FLAGS: dict[int, str] = {
     0: "PROT_NONE",
@@ -50,15 +48,6 @@ MCL_FLAGS: dict[int, str] = {
     0x0001: "MCL_CURRENT",
     0x0002: "MCL_FUTURE",
 }
-
-# Import helpers
-
-# Auto-generate const decoders
-decode_madvise_advice = make_const_decoder(MADV_CONSTANTS)
-
-# Auto-generate flag decoders
-decode_map_flags = make_flag_decoder(MAP_FLAGS)
-decode_mlockall_flags = make_flag_decoder(MCL_FLAGS)
 
 
 def decode_prot_flags(value: int) -> str:
