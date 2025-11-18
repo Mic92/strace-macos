@@ -7,10 +7,16 @@ from __future__ import annotations
 
 from strace_macos.syscalls import numbers
 from strace_macos.syscalls.definitions import SyscallDef
+from strace_macos.syscalls.symbols.ptrace import decode_ptrace_request
 
 # All debugging syscalls (15 total) with full argument definitions
 DEBUG_SYSCALLS: list[SyscallDef] = [
-    SyscallDef(numbers.SYS_ptrace, "ptrace", ["int", "pid_t", "pointer", "int"]),  # 26
+    SyscallDef(
+        numbers.SYS_ptrace,
+        "ptrace",
+        ["int", "pid_t", "pointer", "int"],
+        [decode_ptrace_request, None, None, None],
+    ),  # 26
     SyscallDef(numbers.SYS_kdebug_typefilter, "kdebug_typefilter", ["pointer", "pointer"]),  # 177
     SyscallDef(
         numbers.SYS_kdebug_trace_string,

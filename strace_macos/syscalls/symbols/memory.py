@@ -24,6 +24,9 @@ MAP_FLAGS: dict[int, str] = {
     0x0200: "MAP_HASSEMAPHORE",
     0x0400: "MAP_NOCACHE",
     0x0800: "MAP_JIT",
+    0x2000: "MAP_RESILIENT_CODESIGN",
+    0x4000: "MAP_RESILIENT_MEDIA",
+    0x8000: "MAP_32BIT",
 }
 
 # madvise advice constants
@@ -38,6 +41,8 @@ MADV_CONSTANTS: dict[int, str] = {
     7: "MADV_FREE_REUSABLE",
     8: "MADV_FREE_REUSE",
     9: "MADV_CAN_REUSE",
+    10: "MADV_PAGEOUT",
+    11: "MADV_ZERO",
 }
 
 # mlockall flags

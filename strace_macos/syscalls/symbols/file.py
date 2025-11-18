@@ -4,6 +4,23 @@ from __future__ import annotations
 
 from . import make_const_decoder, make_flag_decoder
 
+# Poll event flags
+POLL_FLAGS: dict[int, str] = {
+    0x0001: "POLLIN",
+    0x0002: "POLLPRI",
+    0x0004: "POLLOUT",
+    0x0008: "POLLERR",
+    0x0010: "POLLHUP",
+    0x0020: "POLLNVAL",
+    0x0040: "POLLRDNORM",
+    0x0080: "POLLRDBAND",
+    0x0100: "POLLWRBAND",
+    0x0200: "POLLEXTEND",
+    0x0400: "POLLATTRIB",
+    0x0800: "POLLNLINK",
+    0x1000: "POLLWRITE",
+}
+
 # File open flags (O_* constants)
 # From libc/src/unix/bsd/mod.rs and libc/src/unix/bsd/apple/mod.rs
 O_FLAGS: dict[int, str] = {
@@ -67,6 +84,8 @@ SEEK_CONSTANTS: dict[int, str] = {
     0: "SEEK_SET",
     1: "SEEK_CUR",
     2: "SEEK_END",
+    3: "SEEK_HOLE",
+    4: "SEEK_DATA",
 }
 
 # Special file descriptor constants for *at() syscalls
@@ -426,3 +445,6 @@ def decode_flock_op(value: int) -> str:
 def decode_ioctl_cmd(value: int) -> str:
     unsigned_value = value & 0xFFFFFFFF if value < 0 else value
     return IOCTL_COMMANDS.get(unsigned_value, hex(unsigned_value))
+
+
+decode_poll_events = make_flag_decoder(POLL_FLAGS)

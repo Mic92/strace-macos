@@ -107,12 +107,18 @@ class StructDecoder:
 
 
 # Import decoders after StructDecoder is defined to avoid circular import
+from strace_macos.syscalls.struct_decoders.kevent import (  # noqa: E402
+    Kevent64Decoder,
+    KeventDecoder,
+)
 from strace_macos.syscalls.struct_decoders.stat import StatDecoder  # noqa: E402
 
 # Registry of struct decoders by name
 STRUCT_DECODERS: dict[str, StructDecoder] = {
     "stat": StatDecoder(),
     "stat64": StatDecoder(),  # Same layout on modern macOS
+    "kevent": KeventDecoder(),
+    "kevent64_s": Kevent64Decoder(),
 }
 
 
@@ -129,6 +135,8 @@ def get_struct_decoder(struct_name: str) -> StructDecoder | None:
 
 
 __all__ = [
+    "Kevent64Decoder",
+    "KeventDecoder",
     "StatDecoder",
     "StructDecoder",
     "get_struct_decoder",

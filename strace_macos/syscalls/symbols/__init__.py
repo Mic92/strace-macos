@@ -24,6 +24,7 @@ from strace_macos.syscalls.symbols.file import (
     decode_msync_flags,
     decode_open_flags,
     decode_pathconf_name,
+    decode_poll_events,
     decode_seek_whence,
     decode_unmount_flags,
     decode_xattr_flags,
@@ -32,6 +33,12 @@ from strace_macos.syscalls.symbols.ipc import (
     decode_ipc_cmd,
     decode_ipc_flags,
     decode_shm_flags,
+)
+from strace_macos.syscalls.symbols.kqueue import (
+    decode_ev_flags,
+    decode_evfilt,
+    decode_note_proc,
+    decode_note_vnode,
 )
 from strace_macos.syscalls.symbols.memory import (
     decode_madvise_advice,
@@ -57,8 +64,14 @@ from strace_macos.syscalls.symbols.process import (
     decode_wait_options,
     decode_waitid_options,
 )
+from strace_macos.syscalls.symbols.ptrace import (
+    decode_ptrace_request,
+)
 from strace_macos.syscalls.symbols.signal import (
     decode_signal,
+)
+from strace_macos.syscalls.symbols.time import (
+    decode_itimer_which,
 )
 
 __all__ = [
@@ -69,6 +82,8 @@ __all__ = [
     "decode_dirfd",
     # Error decoder
     "decode_errno",
+    "decode_ev_flags",
+    "decode_evfilt",
     "decode_fcntl_cmd",
     "decode_fd_flags",
     "decode_file_mode",
@@ -80,18 +95,23 @@ __all__ = [
     "decode_ipc_cmd",
     # IPC decoders
     "decode_ipc_flags",
+    "decode_itimer_which",
     "decode_madvise_advice",
     "decode_map_flags",
     "decode_mlockall_flags",
     "decode_mount_flags",
     "decode_msg_flags",
     "decode_msync_flags",
+    "decode_note_proc",
+    "decode_note_vnode",
     # File decoders
     "decode_open_flags",
     "decode_pathconf_name",
+    "decode_poll_events",
     "decode_prio_which",
     # Memory decoders
     "decode_prot_flags",
+    "decode_ptrace_request",
     "decode_rlimit_resource",
     "decode_rusage_who",
     "decode_seek_whence",
