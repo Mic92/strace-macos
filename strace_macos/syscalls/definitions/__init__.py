@@ -3,10 +3,48 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+
+class ParamDirection(Enum):
+    """Direction of parameter flow."""
+
+    IN = "in"  # Input parameter (read at syscall entry)
+    OUT = "out"  # Output parameter (read at syscall exit)
+
+
+@dataclass
+class StructParam:
+    """Definition of a struct parameter to decode.
+
+    Attributes:
+        arg_index: Index of the argument (0-based)
+        struct_name: Name of the struct type (e.g., "stat", "sockaddr")
+        direction: Whether this is an input or output parameter
+    """
+
+    arg_index: int
+    struct_name: str
+    direction: ParamDirection
+
+
+@dataclass
+class BufferParam:
+    """Definition of a buffer parameter to decode.
+
+    Attributes:
+        arg_index: Index of the buffer argument (0-based)
+        size_arg_index: Index of the argument containing the buffer size
+        direction: Whether this is an input or output buffer
+    """
+
+    arg_index: int
+    size_arg_index: int
+    direction: ParamDirection
 
 
 @dataclass
@@ -19,20 +57,15 @@ class SyscallDef:
         arg_types: List of argument type hints (e.g., ["string", "int", "int"])
         arg_decoders: Optional list of decoder functions for symbolic decoding
                       (None means no decoder for that argument position)
-        output_params: Optional list of (arg_index, struct_name) tuples indicating
-                       which arguments are output parameters that should be decoded
-                       at syscall exit. E.g., [(1, "stat")] means arg 1 is a pointer
-                       to struct stat that gets filled by the syscall.
-        buffer_params: Optional list of (arg_index, size_arg_index, direction) tuples
-                       indicating buffer parameters. Direction is "in" for write buffers
-                       (shown on entry) or "out" for read buffers (shown on exit).
-                       E.g., [(1, 2, "out")] for read(fd, buf, count) means arg 1 is
-                       a buffer whose size is in arg 2, shown on exit.
+        struct_params: Optional list of struct parameters to decode.
+                       E.g., [StructParam(1, "sockaddr", ParamDirection.IN)] for bind
+        buffer_params: Optional list of buffer parameters to decode.
+                       E.g., [BufferParam(1, 2, ParamDirection.OUT)] for read(fd, buf, count)
     """
 
     number: int
     name: str
     arg_types: list[str]
     arg_decoders: list[Callable[[int], str] | None] | None = field(default=None)
-    output_params: list[tuple[int, str]] | None = field(default=None)
-    buffer_params: list[tuple[int, int, str]] | None = field(default=None)
+    struct_params: list[StructParam] | None = field(default=None)
+    buffer_params: list[BufferParam] | None = field(default=None)

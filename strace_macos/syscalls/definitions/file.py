@@ -6,7 +6,7 @@ Priority 1: Required for tests to pass.
 from __future__ import annotations
 
 from strace_macos.syscalls import numbers
-from strace_macos.syscalls.definitions import SyscallDef
+from strace_macos.syscalls.definitions import BufferParam, ParamDirection, StructParam, SyscallDef
 from strace_macos.syscalls.symbols import (
     decode_access_mode,
     decode_at_flags,
@@ -33,17 +33,13 @@ FILE_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_read,
         "read",
         ["int", "pointer", "size_t"],
-        None,
-        None,
-        [(1, 2, "out")],
+        buffer_params=[BufferParam(1, 2, ParamDirection.OUT)],
     ),  # 3 - show buffer on exit
     SyscallDef(
         numbers.SYS_write,
         "write",
         ["int", "pointer", "size_t"],
-        None,
-        None,
-        [(1, 2, "in")],
+        buffer_params=[BufferParam(1, 2, ParamDirection.IN)],
     ),  # 4 - show buffer on entry
     SyscallDef(
         numbers.SYS_open,
@@ -115,17 +111,13 @@ FILE_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_pread,
         "pread",
         ["int", "pointer", "size_t", "off_t"],
-        None,
-        None,
-        [(1, 2, "out")],
+        buffer_params=[BufferParam(1, 2, ParamDirection.OUT)],
     ),  # 153
     SyscallDef(
         numbers.SYS_pwrite,
         "pwrite",
         ["int", "pointer", "size_t", "off_t"],
-        None,
-        None,
-        [(1, 2, "in")],
+        buffer_params=[BufferParam(1, 2, ParamDirection.IN)],
     ),  # 154
     SyscallDef(numbers.SYS_preadv, "preadv", ["int", "pointer", "int", "off_t"]),  # 526
     SyscallDef(numbers.SYS_pwritev, "pwritev", ["int", "pointer", "int", "off_t"]),  # 527
@@ -162,9 +154,24 @@ FILE_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_thread_selfcounts, "thread_selfcounts", ["int", "pointer", "size_t"]
     ),  # 186
     SyscallDef(numbers.SYS_fdatasync, "fdatasync", ["int"]),  # 187
-    SyscallDef(numbers.SYS_stat, "stat", ["string", "pointer"], None, [(1, "stat")]),  # 188
-    SyscallDef(numbers.SYS_fstat, "fstat", ["int", "pointer"], None, [(1, "stat")]),  # 189
-    SyscallDef(numbers.SYS_lstat, "lstat", ["string", "pointer"], None, [(1, "stat")]),  # 190
+    SyscallDef(
+        numbers.SYS_stat,
+        "stat",
+        ["string", "pointer"],
+        struct_params=[StructParam(1, "stat", ParamDirection.OUT)],
+    ),  # 188
+    SyscallDef(
+        numbers.SYS_fstat,
+        "fstat",
+        ["int", "pointer"],
+        struct_params=[StructParam(1, "stat", ParamDirection.OUT)],
+    ),  # 189
+    SyscallDef(
+        numbers.SYS_lstat,
+        "lstat",
+        ["string", "pointer"],
+        struct_params=[StructParam(1, "stat", ParamDirection.OUT)],
+    ),  # 190
     SyscallDef(
         numbers.SYS_pathconf,
         "pathconf",
@@ -406,7 +413,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "fstatat",
         ["int", "string", "pointer", "int"],
         [decode_dirfd, None, None, decode_at_flags],
-        [(2, "stat")],
+        struct_params=[StructParam(2, "stat", ParamDirection.OUT)],
     ),  # 411
     SyscallDef(
         numbers.SYS_linkat,
@@ -461,7 +468,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "fstatat64",
         ["int", "string", "pointer", "int"],
         [decode_dirfd, None, None, decode_at_flags],
-        [(2, "stat64")],
+        struct_params=[StructParam(2, "stat64", ParamDirection.OUT)],
     ),  # 423
     SyscallDef(
         numbers.SYS_openat_nocancel,
@@ -560,33 +567,25 @@ FILE_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_read_nocancel,
         "__read_nocancel",
         ["int", "pointer", "size_t"],
-        None,
-        None,
-        [(1, 2, "out")],
+        buffer_params=[BufferParam(1, 2, ParamDirection.OUT)],
     ),  # 396
     SyscallDef(
         numbers.SYS_write_nocancel,
         "__write_nocancel",
         ["int", "pointer", "size_t"],
-        None,
-        None,
-        [(1, 2, "in")],
+        buffer_params=[BufferParam(1, 2, ParamDirection.IN)],
     ),  # 397
     SyscallDef(
         numbers.SYS_pread_nocancel,
         "__pread_nocancel",
         ["int", "pointer", "size_t", "off_t"],
-        None,
-        None,
-        [(1, 2, "out")],
+        buffer_params=[BufferParam(1, 2, ParamDirection.OUT)],
     ),  # 414
     SyscallDef(
         numbers.SYS_pwrite_nocancel,
         "__pwrite_nocancel",
         ["int", "pointer", "size_t", "off_t"],
-        None,
-        None,
-        [(1, 2, "in")],
+        buffer_params=[BufferParam(1, 2, ParamDirection.IN)],
     ),  # 415
     SyscallDef(numbers.SYS_readv_nocancel, "__readv_nocancel", ["int", "pointer", "int"]),  # 411
     SyscallDef(numbers.SYS_writev_nocancel, "__writev_nocancel", ["int", "pointer", "int"]),  # 412
@@ -596,9 +595,24 @@ FILE_SYSCALLS: list[SyscallDef] = [
         ["int", "int", "long"],
         [None, decode_fcntl_cmd, None],
     ),  # 406
-    SyscallDef(numbers.SYS_stat64, "stat64", ["string", "pointer"], None, [(1, "stat64")]),  # 338
-    SyscallDef(numbers.SYS_fstat64, "fstat64", ["int", "pointer"], None, [(1, "stat64")]),  # 339
-    SyscallDef(numbers.SYS_lstat64, "lstat64", ["string", "pointer"], None, [(1, "stat64")]),  # 340
+    SyscallDef(
+        numbers.SYS_stat64,
+        "stat64",
+        ["string", "pointer"],
+        struct_params=[StructParam(1, "stat64", ParamDirection.OUT)],
+    ),  # 338
+    SyscallDef(
+        numbers.SYS_fstat64,
+        "fstat64",
+        ["int", "pointer"],
+        struct_params=[StructParam(1, "stat64", ParamDirection.OUT)],
+    ),  # 339
+    SyscallDef(
+        numbers.SYS_lstat64,
+        "lstat64",
+        ["string", "pointer"],
+        struct_params=[StructParam(1, "stat64", ParamDirection.OUT)],
+    ),  # 340
     SyscallDef(
         numbers.SYS_stat64_extended,
         "stat64_extended",

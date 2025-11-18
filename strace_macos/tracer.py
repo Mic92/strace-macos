@@ -19,6 +19,7 @@ from strace_macos.exceptions import (
 )
 from strace_macos.lldb_loader import load_lldb_module
 from strace_macos.syscalls.args import (
+    BufferArg,
     FileDescriptorArg,
     FlagsArg,
     IntArg,
@@ -29,6 +30,7 @@ from strace_macos.syscalls.args import (
     UnknownArg,
     UnsignedArg,
 )
+from strace_macos.syscalls.definitions import ParamDirection
 from strace_macos.syscalls.formatters import (
     ColorTextFormatter,
     JSONFormatter,
@@ -486,21 +488,7 @@ class Tracer:
         # Extract arguments
         args = self._extract_args(frame, syscall_name)
 
-        # Get return address using architecture-specific method
-        return_address = self.arch.get_return_address(frame, process, self.lldb)
-        if return_address is None:
-            # Can't get return address, emit event without return value
-            event = SyscallEvent(
-                pid=process.GetProcessID(),
-                syscall_name=syscall_name,
-                args=args,
-                return_value="?",
-                timestamp=time.time(),
-            )
-            self._write_event(event)
-            return
-
-        # Create pending event
+        # Create initial event
         event = SyscallEvent(
             pid=process.GetProcessID(),
             syscall_name=syscall_name,
@@ -508,6 +496,19 @@ class Tracer:
             return_value="?",
             timestamp=time.time(),
         )
+
+        # Decode input struct parameters at entry
+        self._decode_struct_params(frame, event, at_entry=True)
+
+        # Decode input buffer parameters at entry
+        self._decode_buffer_params(frame, event, at_entry=True)
+
+        # Get return address using architecture-specific method
+        return_address = self.arch.get_return_address(frame, process, self.lldb)
+        if return_address is None:
+            # Can't get return address, emit event without return value
+            self._write_event(event)
+            return
 
         # Set one-shot breakpoint at return address
         target = process.GetTarget()
@@ -552,10 +553,11 @@ class Tracer:
         else:
             event.return_value = "?"
 
-        # Decode output parameters if syscall succeeded
+        # Decode output struct parameters if syscall succeeded
         # Only decode output params if return value indicates success (>= 0)
         if isinstance(event.return_value, int) and event.return_value >= 0:
-            self._decode_output_params(frame, event)
+            self._decode_struct_params(frame, event, at_entry=False)
+            self._decode_buffer_params(frame, event, at_entry=False)
 
         # Write the complete event
         self._write_event(event)
@@ -740,34 +742,47 @@ class Tracer:
 
         return args
 
-    def _decode_output_params(self, frame: lldb.SBFrame, event: SyscallEvent) -> None:
-        """Decode output parameters at syscall exit.
+    def _decode_struct_params(
+        self, frame: lldb.SBFrame, event: SyscallEvent, *, at_entry: bool
+    ) -> None:
+        """Decode struct parameters at syscall entry or exit.
 
         Args:
             frame: LLDB stack frame
             event: Syscall event with arguments to update
+            at_entry: True if called at syscall entry, False if at exit
         """
-        # Look up syscall definition to get output_params
+        # Look up syscall definition to get struct_params
         syscall_def = self.registry.lookup_by_name(event.syscall_name)
-        if not syscall_def or not syscall_def.output_params:
+        if not syscall_def or not syscall_def.struct_params:
             return
 
         # Get the process for memory reading
         thread = frame.GetThread()
         process = thread.GetProcess()
 
-        # Decode each output parameter
-        for arg_index, struct_name in syscall_def.output_params:
-            if arg_index >= len(event.args):
+        # Decode each struct parameter based on direction
+        for struct_param in syscall_def.struct_params:
+            # Only process params in the appropriate direction
+            if at_entry and struct_param.direction != ParamDirection.IN:
+                continue
+            if not at_entry and struct_param.direction != ParamDirection.OUT:
+                continue
+
+            if struct_param.arg_index >= len(event.args):
                 continue
 
             # Get the argument (should be a pointer)
-            arg = event.args[arg_index]
+            arg = event.args[struct_param.arg_index]
             if not isinstance(arg, PointerArg):
                 continue
 
+            # Skip NULL pointers
+            if arg.address == 0:
+                continue
+
             # Get the struct decoder
-            decoder = get_struct_decoder(struct_name)
+            decoder = get_struct_decoder(struct_param.struct_name)
             if not decoder:
                 continue
 
@@ -775,7 +790,121 @@ class Tracer:
             decoded_fields = decoder.decode(process, arg.address, no_abbrev=self.no_abbrev)
             if decoded_fields:
                 # Replace the pointer arg with a struct arg
-                event.args[arg_index] = StructArg(decoded_fields)
+                event.args[struct_param.arg_index] = StructArg(decoded_fields)
+
+    def _decode_buffer_params(
+        self, frame: lldb.SBFrame, event: SyscallEvent, *, at_entry: bool
+    ) -> None:
+        """Decode buffer parameters at syscall entry or exit.
+
+        Args:
+            frame: LLDB stack frame
+            event: Syscall event with arguments to update
+            at_entry: True if called at syscall entry, False if at exit
+        """
+        # Look up syscall definition to get buffer_params
+        syscall_def = self.registry.lookup_by_name(event.syscall_name)
+        if not syscall_def or not syscall_def.buffer_params:
+            return
+
+        # Get the process for memory reading
+        thread = frame.GetThread()
+        process = thread.GetProcess()
+
+        # Decode each buffer parameter based on direction
+        for buffer_param in syscall_def.buffer_params:
+            self._decode_single_buffer(buffer_param, event, process, at_entry=at_entry)
+
+    def _decode_single_buffer(  # noqa: PLR0911
+        self,
+        buffer_param: Any,
+        event: SyscallEvent,
+        process: Any,
+        *,
+        at_entry: bool,
+    ) -> None:
+        """Decode a single buffer parameter.
+
+        Args:
+            buffer_param: BufferParam definition
+            event: Syscall event with arguments to update
+            process: LLDB process for memory reading
+            at_entry: True if at syscall entry, False if at exit
+        """
+        # Only process params in the appropriate direction
+        if at_entry and buffer_param.direction != ParamDirection.IN:
+            return
+        if not at_entry and buffer_param.direction != ParamDirection.OUT:
+            return
+
+        # Validate argument indices
+        if buffer_param.arg_index >= len(event.args):
+            return
+        if buffer_param.size_arg_index >= len(event.args):
+            return
+
+        # Get buffer address and size
+        buf_address = self._get_buffer_address(event.args[buffer_param.arg_index])
+        if buf_address is None:
+            return
+
+        size = self._get_buffer_size(
+            event.args[buffer_param.size_arg_index], event.return_value, at_entry=at_entry
+        )
+        if size is None:
+            return
+
+        # Read the buffer data
+        error = self.lldb.SBError()
+        data = process.ReadMemory(buf_address, size, error)
+
+        if error.Fail() or not data:
+            return
+
+        # Replace the pointer arg with a buffer arg
+        event.args[buffer_param.arg_index] = BufferArg(data, buf_address)
+
+    def _get_buffer_address(self, arg: SyscallArg) -> int | None:
+        """Extract buffer address from argument.
+
+        Args:
+            arg: Argument that should be a pointer
+
+        Returns:
+            Buffer address, or None if invalid/NULL
+        """
+        if not isinstance(arg, PointerArg):
+            return None
+        return arg.address if arg.address != 0 else None
+
+    def _get_buffer_size(
+        self, size_arg: SyscallArg, return_value: int | str, *, at_entry: bool
+    ) -> int | None:
+        """Extract buffer size from argument.
+
+        Args:
+            size_arg: Argument containing the size
+            return_value: Syscall return value (for output buffers)
+            at_entry: True if at entry, False if at exit
+
+        Returns:
+            Buffer size, or None if invalid
+        """
+        # Get size from argument
+        if isinstance(size_arg, (IntArg, UnsignedArg)):
+            size = size_arg.value
+        else:
+            return None
+
+        # For output buffers, use return value as actual size if smaller
+        if not at_entry and isinstance(return_value, int):
+            size = min(size, return_value)
+
+        # Validate size is reasonable
+        if size < 0 or size > 65536:
+            return None
+
+        return size
 
     def _read_string(self, process: lldb.SBProcess, address: int, max_length: int = 4096) -> str:
         """Read a null-terminated string from process memory.

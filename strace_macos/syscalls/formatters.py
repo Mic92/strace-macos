@@ -59,7 +59,7 @@ class JSONFormatter:
             JSON string (no trailing newline)
         """
         # Format args: use dict for StructArg, str for others
-        formatted_args: list[dict[str, dict[str, str | int]] | str] = []
+        formatted_args: list[dict[str, dict[str, str | int | list]] | str] = []
         for arg in event.args:
             if isinstance(arg, StructArg):
                 # For JSON, include the struct fields as a nested dict

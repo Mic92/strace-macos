@@ -119,12 +119,12 @@ class FlagsArg(SyscallArg):
 class StructArg(SyscallArg):
     """Decoded struct argument (e.g., struct stat output)."""
 
-    def __init__(self, fields: dict[str, str | int]) -> None:
+    def __init__(self, fields: dict[str, str | int | list]) -> None:
         """Initialize a struct argument.
 
         Args:
             fields: Dictionary of field names to their decoded values
-                   Values can be strings (already formatted) or ints (will be formatted)
+                   Values can be strings, ints, or lists (for nested structures)
         """
         self.fields = fields
 
@@ -158,20 +158,31 @@ class BufferArg(SyscallArg):
         self.address = address
         self.max_display = max_display
 
-    def __str__(self) -> str:
-        """Return string representation showing buffer contents."""
-        if not self.data:
-            return '""'
+    @staticmethod
+    def format_buffer(data: bytes, max_display: int = 32) -> str:
+        """Format buffer data as an escaped string (without outer quotes).
+
+        Args:
+            data: The buffer data to format
+            max_display: Maximum number of bytes to display
+
+        Returns:
+            Escaped string representation without outer quotes
+        """
+        if not data:
+            return ""
+
+        display_data = data[:max_display]
+        suffix = "..." if len(data) > max_display else ""
 
         # Try to decode as UTF-8 text
         try:
-            text = self.data[: self.max_display].decode("utf-8", errors="strict")
+            text = display_data.decode("utf-8", errors="strict")
         except UnicodeDecodeError:
             # Binary data - show as hex
-            hex_data = self.data[: self.max_display].hex()
-            suffix = "..." if len(self.data) > self.max_display else ""
-            hex_bytes = " \\x".join(hex_data[i : i + 2] for i in range(0, len(hex_data), 2))
-            return f'"\\x{hex_bytes}{suffix}"'
+            hex_data = display_data.hex()
+            hex_bytes = "\\x".join(hex_data[i : i + 2] for i in range(0, len(hex_data), 2))
+            return f"\\x{hex_bytes}{suffix}"
         else:
             # Escape special characters
             escaped = (
@@ -181,8 +192,13 @@ class BufferArg(SyscallArg):
                 .replace("\r", "\\r")
                 .replace("\t", "\\t")
             )
-            suffix = "..." if len(self.data) > self.max_display else ""
-            return f'"{escaped}{suffix}"'
+            return f"{escaped}{suffix}"
+
+    def __str__(self) -> str:
+        """Return string representation showing buffer contents."""
+        # Add quotes for text output
+        formatted = self.format_buffer(self.data, self.max_display)
+        return f'"{formatted}"' if formatted else '""'
 
 
 class UnknownArg(SyscallArg):

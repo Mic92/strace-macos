@@ -4,6 +4,8 @@ Test comprehensive network syscall coverage.
 This test verifies that the --network mode exercises most socket-related syscalls.
 """
 
+from __future__ import annotations
+
 import subprocess
 import sys
 import tempfile
@@ -11,25 +13,22 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "fixtures"))
-import helpers
+import helpers  # type: ignore[import-not-found]
+from compile import get_test_executable  # type: ignore[import-not-found]
 
 
 class TestNetworkSyscalls(unittest.TestCase):
     """Test network syscall coverage using the test executable's --network mode."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test fixtures."""
-        self.test_executable = Path(__file__).parent / "fixtures" / "test_executable"
-        self.assertTrue(
-            self.test_executable.exists(), f"Test executable not found: {self.test_executable}"
-        )
-
+        self.test_executable = get_test_executable()
         self.python_path = "/usr/bin/python3"  # System Python for LLDB
         self.strace_module = str(Path(__file__).parent.parent)
 
-    def run_strace(self, args):
+    def run_strace(self, args: list[str]) -> int:
         """Run strace and return exit code."""
-        cmd = [self.python_path, "-m", "strace_macos"] + args
+        cmd = [self.python_path, "-m", "strace_macos", *args]
         result = subprocess.run(
             cmd,
             check=False,
@@ -39,7 +38,7 @@ class TestNetworkSyscalls(unittest.TestCase):
         )
         return result.returncode
 
-    def test_network_syscall_coverage(self):
+    def test_network_syscall_coverage(self) -> None:  # noqa: PLR0915
         """Test that all expected network syscalls are captured."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             output_file = Path(f.name)
@@ -49,8 +48,8 @@ class TestNetworkSyscalls(unittest.TestCase):
                 ["--json", "-o", str(output_file), str(self.test_executable), "--network"]
             )
 
-            self.assertEqual(exit_code, 0, f"strace should exit with code 0, got {exit_code}")
-            self.assertTrue(output_file.exists(), "Output file should be created")
+            assert exit_code == 0, f"strace should exit with code 0, got {exit_code}"
+            assert output_file.exists(), "Output file should be created"
 
             # Parse JSON Lines output
             syscalls = helpers.json_lines(output_file)
@@ -82,51 +81,145 @@ class TestNetworkSyscalls(unittest.TestCase):
         missing_syscalls = expected_syscalls - set(syscall_names)
 
         # We should capture at least 12 out of 14 expected syscalls
-        self.assertGreaterEqual(
-            len(captured_network_syscalls),
-            12,
+        assert len(captured_network_syscalls) >= 12, (
             f"Should capture at least 12 network syscalls, "
             f"got {len(captured_network_syscalls)}.\n"
             f"Captured: {sorted(captured_network_syscalls)}\n"
-            f"Missing: {sorted(missing_syscalls)}",
+            f"Missing: {sorted(missing_syscalls)}"
         )
 
         # Verify symbolic decoders are working correctly
-        # socketpair: socketpair(domain, type, protocol, sv)
+        # Test socketpair(domain, type, protocol, sv)
         socketpair_calls = [sc for sc in syscalls if sc.get("syscall") == "socketpair"]
-        self.assertGreater(len(socketpair_calls), 0, "Should have socketpair calls")
+        assert len(socketpair_calls) > 0, "Should have socketpair calls"
         sp = socketpair_calls[0]
-        self.assertIn("AF_UNIX", sp["args"][0], "socketpair should decode AF_UNIX")
-        self.assertIn("SOCK_STREAM", sp["args"][1], "socketpair should decode SOCK_STREAM")
+        assert "AF_UNIX" in sp["args"][0], "socketpair should decode AF_UNIX"
+        assert "SOCK_STREAM" in sp["args"][1], "socketpair should decode SOCK_STREAM"
 
-        # socket: socket(domain, type, protocol)
+        # Test socket(domain, type, protocol)
         socket_calls = [sc for sc in syscalls if sc.get("syscall") == "socket"]
-        self.assertGreater(len(socket_calls), 0, "Should have socket calls")
+        assert len(socket_calls) > 0, "Should have socket calls"
         sock = socket_calls[0]
-        self.assertIn("AF_", sock["args"][0], "socket should decode AF_* domain")
-        self.assertIn("SOCK_", sock["args"][1], "socket should decode SOCK_* type")
+        assert "AF_" in sock["args"][0], "socket should decode AF_* domain"
+        assert "SOCK_" in sock["args"][1], "socket should decode SOCK_* type"
 
-        # shutdown: shutdown(sockfd, how)
+        # Test shutdown(sockfd, how)
         shutdown_calls = [sc for sc in syscalls if sc.get("syscall") == "shutdown"]
-        self.assertGreater(len(shutdown_calls), 0, "Should have shutdown calls")
+        assert len(shutdown_calls) > 0, "Should have shutdown calls"
         shutdown = shutdown_calls[0]
-        self.assertIn("SHUT_", shutdown["args"][1], "shutdown should decode SHUT_* flag")
+        assert "SHUT_" in shutdown["args"][1], "shutdown should decode SHUT_* flag"
 
-        # getsockopt: getsockopt(sockfd, level, optname, optval, optlen)
+        # Test getsockopt(sockfd, level, optname, optval, optlen)
         getsockopt_calls = [sc for sc in syscalls if sc.get("syscall") == "getsockopt"]
-        self.assertGreater(len(getsockopt_calls), 0, "Should have getsockopt calls")
+        assert len(getsockopt_calls) > 0, "Should have getsockopt calls"
         getsockopt = getsockopt_calls[0]
-        self.assertEqual(getsockopt["args"][1], "SOL_SOCKET", "getsockopt should decode SOL_SOCKET")
-        self.assertIn("SO_", getsockopt["args"][2], "getsockopt should decode SO_* option name")
+        assert getsockopt["args"][1] == "SOL_SOCKET", "getsockopt should decode SOL_SOCKET"
+        assert "SO_" in getsockopt["args"][2], "getsockopt should decode SO_* option name"
 
-        # setsockopt: setsockopt(sockfd, level, optname, optval, optlen)
+        # Test setsockopt(sockfd, level, optname, optval, optlen)
         setsockopt_calls = [sc for sc in syscalls if sc.get("syscall") == "setsockopt"]
-        self.assertGreater(len(setsockopt_calls), 0, "Should have setsockopt calls")
+        assert len(setsockopt_calls) > 0, "Should have setsockopt calls"
         setsockopt = setsockopt_calls[0]
-        self.assertEqual(setsockopt["args"][1], "SOL_SOCKET", "setsockopt should decode SOL_SOCKET")
-        self.assertEqual(
-            setsockopt["args"][2], "SO_KEEPALIVE", "setsockopt should decode SO_KEEPALIVE"
-        )
+        assert setsockopt["args"][1] == "SOL_SOCKET", "setsockopt should decode SOL_SOCKET"
+        assert setsockopt["args"][2] == "SO_KEEPALIVE", "setsockopt should decode SO_KEEPALIVE"
+
+        # Test bind: should decode sockaddr structure
+        # Expected output: bind(3, {sa_family=AF_UNIX, sun_path="/tmp/strace_test.12345"}, 106)
+        bind_calls = [sc for sc in syscalls if sc.get("syscall") == "bind"]
+        if bind_calls:
+            bind_call = bind_calls[0]
+            addr_arg = bind_call["args"][1]
+            assert isinstance(addr_arg, dict), f"bind addr should be decoded struct, got {addr_arg}"
+            assert "output" in addr_arg, (
+                f"bind addr should have 'output' key for StructArg, got {addr_arg}"
+            )
+            addr_fields = addr_arg["output"]
+            assert "sa_family" in addr_fields, f"bind should show sa_family, got {addr_fields}"
+            # For Unix sockets, should show sun_path
+            assert "sun_path" in addr_fields or "AF_UNIX" in str(addr_fields), (
+                f"bind should decode sockaddr, got {addr_fields}"
+            )
+
+        # Test sendto: should decode buffer contents and flags
+        # Expected output: sendto(3, "test", 4, 0, NULL, 0)
+        sendto_calls = [sc for sc in syscalls if sc.get("syscall") == "sendto"]
+        if sendto_calls:
+            sendto_call = sendto_calls[0]
+            buf_arg = sendto_call["args"][1]
+            assert '"' in buf_arg, f"sendto buffer should be decoded as string, got {buf_arg}"
+            assert "test" in buf_arg, f"sendto buffer should contain 'test', got {buf_arg}"
+
+            # Flags should already be decoded with current decode_msg_flags
+            flags_arg = sendto_call["args"][3]
+            assert flags_arg == "0" or "MSG_" in flags_arg, (
+                f"sendto flags should be decoded, got {flags_arg}"
+            )
+
+        # Test recvfrom: should decode buffer contents and flags
+        recvfrom_calls = [sc for sc in syscalls if sc.get("syscall") == "recvfrom"]
+        if recvfrom_calls:
+            recvfrom_call = recvfrom_calls[0]
+            flags_arg = recvfrom_call["args"][3]
+            assert flags_arg == "0" or "MSG_" in flags_arg, (
+                f"recvfrom flags should be decoded, got {flags_arg}"
+            )
+
+        # Test sendmsg: should decode msghdr structure
+        # Expected output: sendmsg(3, {msg_name=NULL, msg_iov=[...], ...}, 0)
+        sendmsg_calls = [sc for sc in syscalls if sc.get("syscall") == "sendmsg"]
+        if sendmsg_calls:
+            sendmsg_call = sendmsg_calls[0]
+            msg_arg = sendmsg_call["args"][1]
+            assert isinstance(msg_arg, dict), f"sendmsg msg should be decoded struct, got {msg_arg}"
+            assert "output" in msg_arg, f"sendmsg should have 'output' key, got {msg_arg}"
+            msg_fields = msg_arg["output"]
+            assert "msg_iov" in msg_fields, f"sendmsg should show msg_iov, got {msg_fields}"
+            # msg_iov should be a list of iovec dicts
+            assert isinstance(msg_fields["msg_iov"], list), (
+                f"msg_iov should be a list, got {type(msg_fields['msg_iov'])}"
+            )
+            assert len(msg_fields["msg_iov"]) > 0, (
+                f"msg_iov should have elements, got {msg_fields['msg_iov']}"
+            )
+            # Check first iovec
+            iov = msg_fields["msg_iov"][0]
+            assert "iov_base" in iov, f"iovec should have iov_base, got {iov}"
+            assert "iov_len" in iov, f"iovec should have iov_len, got {iov}"
+            # iov_base should be a plain string without quotes (quotes are added by JSON serialization)
+            assert iov["iov_base"] == "msg", (
+                f"iovec buffer should be 'msg' (without quotes), got {iov['iov_base']!r}"
+            )
+            assert iov["iov_len"] == 3, f"iovec length should be 3, got {iov['iov_len']}"
+
+        # Test getsockname: should decode sockaddr
+        getsockname_calls = [sc for sc in syscalls if sc.get("syscall") == "getsockname"]
+        if getsockname_calls:
+            getsockname_call = getsockname_calls[0]
+            addr_arg = getsockname_call["args"][1]
+            assert isinstance(addr_arg, dict), (
+                f"getsockname addr should be decoded struct, got {addr_arg}"
+            )
+            assert "output" in addr_arg, f"getsockname should have 'output' key, got {addr_arg}"
+
+        # Test getpeername: should decode sockaddr
+        getpeername_calls = [sc for sc in syscalls if sc.get("syscall") == "getpeername"]
+        if getpeername_calls:
+            getpeername_call = getpeername_calls[0]
+            addr_arg = getpeername_call["args"][1]
+            assert isinstance(addr_arg, dict), (
+                f"getpeername addr should be decoded struct, got {addr_arg}"
+            )
+            assert "output" in addr_arg, f"getpeername should have 'output' key, got {addr_arg}"
+
+        # Test accept: should decode sockaddr
+        accept_calls = [sc for sc in syscalls if sc.get("syscall") == "accept"]
+        if accept_calls:
+            accept_call = accept_calls[0]
+            addr_arg = accept_call["args"][1]
+            assert isinstance(addr_arg, dict), (
+                f"accept addr should be decoded struct, got {addr_arg}"
+            )
+            assert "output" in addr_arg, f"accept should have 'output' key, got {addr_arg}"
 
 
 if __name__ == "__main__":

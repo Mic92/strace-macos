@@ -6,7 +6,7 @@ Priority 2: Required for network tests.
 from __future__ import annotations
 
 from strace_macos.syscalls import numbers
-from strace_macos.syscalls.definitions import SyscallDef
+from strace_macos.syscalls.definitions import BufferParam, ParamDirection, StructParam, SyscallDef
 from strace_macos.syscalls.symbols import (
     decode_msg_flags,
     decode_shutdown_how,
@@ -24,30 +24,58 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
         "recvmsg",
         ["int", "pointer", "int"],
         [None, None, decode_msg_flags],
+        struct_params=[StructParam(1, "msghdr", ParamDirection.IN)],
     ),  # 27
     SyscallDef(
         numbers.SYS_sendmsg,
         "sendmsg",
         ["int", "pointer", "int"],
         [None, None, decode_msg_flags],
+        struct_params=[StructParam(1, "msghdr", ParamDirection.IN)],
     ),  # 28
     SyscallDef(
         numbers.SYS_recvfrom,
         "recvfrom",
         ["int", "pointer", "size_t", "int", "pointer", "pointer"],
         [None, None, None, decode_msg_flags, None, None],
+        buffer_params=[BufferParam(1, 2, ParamDirection.OUT)],
     ),  # 29
-    SyscallDef(numbers.SYS_accept, "accept", ["int", "pointer", "pointer"]),  # 30
-    SyscallDef(numbers.SYS_getpeername, "getpeername", ["int", "pointer", "pointer"]),  # 31
-    SyscallDef(numbers.SYS_getsockname, "getsockname", ["int", "pointer", "pointer"]),  # 32
+    SyscallDef(
+        numbers.SYS_accept,
+        "accept",
+        ["int", "pointer", "pointer"],
+        struct_params=[StructParam(1, "sockaddr", ParamDirection.OUT)],
+    ),  # 30
+    SyscallDef(
+        numbers.SYS_getpeername,
+        "getpeername",
+        ["int", "pointer", "pointer"],
+        struct_params=[StructParam(1, "sockaddr", ParamDirection.OUT)],
+    ),  # 31
+    SyscallDef(
+        numbers.SYS_getsockname,
+        "getsockname",
+        ["int", "pointer", "pointer"],
+        struct_params=[StructParam(1, "sockaddr", ParamDirection.OUT)],
+    ),  # 32
     SyscallDef(
         numbers.SYS_socket,
         "socket",
         ["int", "int", "int"],
         [decode_socket_family, decode_socket_type, decode_socket_protocol],
     ),  # 97
-    SyscallDef(numbers.SYS_connect, "connect", ["int", "pointer", "socklen_t"]),  # 98
-    SyscallDef(numbers.SYS_bind, "bind", ["int", "pointer", "socklen_t"]),  # 104
+    SyscallDef(
+        numbers.SYS_connect,
+        "connect",
+        ["int", "pointer", "socklen_t"],
+        struct_params=[StructParam(1, "sockaddr", ParamDirection.IN)],
+    ),  # 98
+    SyscallDef(
+        numbers.SYS_bind,
+        "bind",
+        ["int", "pointer", "socklen_t"],
+        struct_params=[StructParam(1, "sockaddr", ParamDirection.IN)],
+    ),  # 104
     SyscallDef(
         numbers.SYS_setsockopt,
         "setsockopt",
@@ -66,6 +94,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
         "sendto",
         ["int", "pointer", "size_t", "int", "pointer", "socklen_t"],
         [None, None, None, decode_msg_flags, None, None],
+        buffer_params=[BufferParam(1, 2, ParamDirection.IN)],
     ),  # 133
     SyscallDef(
         numbers.SYS_shutdown, "shutdown", ["int", "int"], [None, decode_shutdown_how]
@@ -81,32 +110,40 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
         "__recvmsg_nocancel",
         ["int", "pointer", "int"],
         [None, None, decode_msg_flags],
+        struct_params=[StructParam(1, "msghdr", ParamDirection.IN)],
     ),  # 401
     SyscallDef(
         numbers.SYS_sendmsg_nocancel,
         "__sendmsg_nocancel",
         ["int", "pointer", "int"],
         [None, None, decode_msg_flags],
+        struct_params=[StructParam(1, "msghdr", ParamDirection.IN)],
     ),  # 402
     SyscallDef(
         numbers.SYS_recvfrom_nocancel,
         "__recvfrom_nocancel",
         ["int", "pointer", "size_t", "int", "pointer", "pointer"],
         [None, None, None, decode_msg_flags, None, None],
+        buffer_params=[BufferParam(1, 2, ParamDirection.OUT)],
     ),  # 403
     SyscallDef(
-        numbers.SYS_accept_nocancel, "__accept_nocancel", ["int", "pointer", "pointer"]
+        numbers.SYS_accept_nocancel,
+        "__accept_nocancel",
+        ["int", "pointer", "pointer"],
+        struct_params=[StructParam(1, "sockaddr", ParamDirection.OUT)],
     ),  # 404
     SyscallDef(
         numbers.SYS_connect_nocancel,
         "__connect_nocancel",
         ["int", "pointer", "socklen_t"],
+        struct_params=[StructParam(1, "sockaddr", ParamDirection.IN)],
     ),  # 409
     SyscallDef(
         numbers.SYS_sendto_nocancel,
         "__sendto_nocancel",
         ["int", "pointer", "size_t", "int", "pointer", "socklen_t"],
         [None, None, None, decode_msg_flags, None, None],
+        buffer_params=[BufferParam(1, 2, ParamDirection.IN)],
     ),  # 413
     SyscallDef(numbers.SYS_pid_shutdown_sockets, "pid_shutdown_sockets", ["int", "int"]),  # 453
     SyscallDef(
