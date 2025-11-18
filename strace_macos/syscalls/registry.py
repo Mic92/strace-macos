@@ -84,17 +84,6 @@ class SyscallRegistry:
         if is_network:
             self._network_syscalls.add(syscall.name)
 
-    def lookup_by_number(self, number: int) -> SyscallDef | None:
-        """Look up syscall by number.
-
-        Args:
-            number: The syscall number
-
-        Returns:
-            SyscallDef if found, None otherwise
-        """
-        return self._by_number.get(number)
-
     def lookup_by_name(self, name: str) -> SyscallDef | None:
         """Look up syscall by name.
 

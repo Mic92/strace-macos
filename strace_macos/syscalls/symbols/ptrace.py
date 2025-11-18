@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from . import make_const_decoder
-
 # Ptrace request constants (PT_*)
 PTRACE_REQUESTS: dict[int, str] = {
     0: "PT_TRACE_ME",
@@ -25,6 +23,3 @@ PTRACE_REQUESTS: dict[int, str] = {
     31: "PT_DENY_ATTACH",
     32: "PT_FIRSTMACH",
 }
-
-# Auto-generate decoder
-decode_ptrace_request = make_const_decoder(PTRACE_REQUESTS)

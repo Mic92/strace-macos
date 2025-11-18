@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from . import make_const_decoder, make_flag_decoder
-
 # Poll event flags
 POLL_FLAGS: dict[int, str] = {
     0x0001: "POLLIN",
@@ -402,23 +400,6 @@ def decode_file_type_mode(value: int) -> str:
     return f"{file_type_str}|0{perms:o}"
 
 
-# Auto-generate const decoders
-decode_seek_whence = make_const_decoder(SEEK_CONSTANTS)
-decode_fcntl_cmd = make_const_decoder(FCNTL_COMMANDS)
-decode_unmount_flags = make_const_decoder(UNMOUNT_FLAGS)
-decode_pathconf_name = make_const_decoder(PATHCONF_NAMES)
-
-# Auto-generate flag decoders
-decode_at_flags = make_flag_decoder(AT_FLAGS)
-decode_fd_flags = make_flag_decoder(FD_FLAGS)
-decode_msync_flags = make_flag_decoder(MSYNC_FLAGS)
-decode_mount_flags = make_flag_decoder(MOUNT_FLAGS)
-decode_chflags = make_flag_decoder(CHFLAGS_FLAGS)
-decode_xattr_flags = make_flag_decoder(XATTR_FLAGS)
-decode_copyfile_flags = make_flag_decoder(COPYFILE_FLAGS)
-decode_fsopt_flags = make_flag_decoder(FSOPT_FLAGS)
-
-
 def decode_dirfd(value: int) -> str:
     if value == AT_FDCWD:
         return "AT_FDCWD"
@@ -445,6 +426,3 @@ def decode_flock_op(value: int) -> str:
 def decode_ioctl_cmd(value: int) -> str:
     unsigned_value = value & 0xFFFFFFFF if value < 0 else value
     return IOCTL_COMMANDS.get(unsigned_value, hex(unsigned_value))
-
-
-decode_poll_events = make_flag_decoder(POLL_FLAGS)

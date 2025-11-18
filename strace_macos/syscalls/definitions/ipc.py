@@ -7,16 +7,18 @@ from __future__ import annotations
 
 from strace_macos.syscalls import numbers
 from strace_macos.syscalls.definitions import (
+    ConstParam,
     CustomParam,
+    FlagsParam,
     IntParam,
     PointerParam,
     SyscallDef,
     UnsignedParam,
 )
-from strace_macos.syscalls.symbols import (
-    decode_ipc_cmd,
+from strace_macos.syscalls.symbols.ipc import (
+    IPC_COMMANDS,
+    SHM_FLAGS,
     decode_ipc_flags,
-    decode_shm_flags,
 )
 
 # All IPC syscalls (48 total) with full argument definitions
@@ -97,13 +99,13 @@ IPC_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_semctl,
         "semctl",
-        params=[IntParam(), IntParam(), CustomParam(decode_ipc_cmd), PointerParam()],
+        params=[IntParam(), IntParam(), ConstParam(IPC_COMMANDS), PointerParam()],
     ),  # 254
     SyscallDef(
         numbers.SYS_semget,
         "semget",
         params=[IntParam(), IntParam(), CustomParam(decode_ipc_flags)],
-    ),  # 255
+    ),  # 255 - Keep CustomParam because decode_ipc_flags has special octal mode logic
     SyscallDef(
         numbers.SYS_semop,
         "semop",
@@ -112,13 +114,13 @@ IPC_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_msgctl,
         "msgctl",
-        params=[IntParam(), CustomParam(decode_ipc_cmd), PointerParam()],
+        params=[IntParam(), ConstParam(IPC_COMMANDS), PointerParam()],
     ),  # 258
     SyscallDef(
         numbers.SYS_msgget,
         "msgget",
         params=[IntParam(), CustomParam(decode_ipc_flags)],
-    ),  # 259
+    ),  # 259 - Keep CustomParam because decode_ipc_flags has special octal mode logic
     SyscallDef(
         numbers.SYS_msgsnd,
         "msgsnd",
@@ -132,12 +134,12 @@ IPC_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_shmat,
         "shmat",
-        params=[IntParam(), PointerParam(), CustomParam(decode_shm_flags)],
+        params=[IntParam(), PointerParam(), FlagsParam(SHM_FLAGS)],
     ),  # 262
     SyscallDef(
         numbers.SYS_shmctl,
         "shmctl",
-        params=[IntParam(), CustomParam(decode_ipc_cmd), PointerParam()],
+        params=[IntParam(), ConstParam(IPC_COMMANDS), PointerParam()],
     ),  # 263
     SyscallDef(
         numbers.SYS_shmdt,
@@ -148,7 +150,7 @@ IPC_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_shmget,
         "shmget",
         params=[IntParam(), UnsignedParam(), CustomParam(decode_ipc_flags)],
-    ),  # 265
+    ),  # 265 - Keep CustomParam because decode_ipc_flags has special octal mode logic
     # POSIX semaphores
     SyscallDef(
         numbers.SYS_sem_wait,

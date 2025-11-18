@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from . import make_const_decoder, make_flag_decoder
-
 # Event filter types (EVFILT_*)
 EVFILT_CONSTANTS: dict[int, str] = {
     -1: "EVFILT_READ",
@@ -75,9 +73,3 @@ NOTE_USER_FLAGS: dict[int, str] = {
     0x80000000: "NOTE_FFOR",
     0xC0000000: "NOTE_FFCOPY",
 }
-
-# Auto-generate decoders
-decode_evfilt = make_const_decoder(EVFILT_CONSTANTS)
-decode_ev_flags = make_flag_decoder(EV_FLAGS)
-decode_note_vnode = make_flag_decoder(NOTE_VNODE_FLAGS)
-decode_note_proc = make_flag_decoder(NOTE_PROC_FLAGS)
