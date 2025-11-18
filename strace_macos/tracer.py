@@ -15,6 +15,7 @@ from strace_macos.syscalls.args import (
     SyscallArg,
     UnknownArg,
 )
+from strace_macos.syscalls.category import SyscallCategory
 from strace_macos.syscalls.formatters import (
     ColorTextFormatter,
     JSONFormatter,
@@ -66,7 +67,7 @@ class Tracer:
 
         # Parse filter expression
         self.filtered_syscalls: set[str] | None = None
-        self.filter_category: str | None = None
+        self.filter_category: SyscallCategory | None = None
         if filter_expr:
             self._parse_filter(filter_expr)
 
@@ -99,9 +100,24 @@ class Tracer:
 
         value = filter_expr[6:]  # Remove "trace=" prefix
 
-        # Check if it's a category
-        if value in ("file", "network"):
-            self.filter_category = value
+        # Check if it's a category (match strace categories)
+        category_map = {
+            "file": SyscallCategory.FILE,
+            "network": SyscallCategory.NETWORK,
+            "process": SyscallCategory.PROCESS,
+            "memory": SyscallCategory.MEMORY,
+            "signal": SyscallCategory.SIGNAL,
+            "ipc": SyscallCategory.IPC,
+            "thread": SyscallCategory.THREAD,
+            "time": SyscallCategory.TIME,
+            "sysinfo": SyscallCategory.SYSINFO,
+            "security": SyscallCategory.SECURITY,
+            "debug": SyscallCategory.DEBUG,
+            "misc": SyscallCategory.MISC,
+        }
+
+        if value in category_map:
+            self.filter_category = category_map[value]
         else:
             # It's a comma-separated list of syscalls
             self.filtered_syscalls = set(value.split(","))
@@ -115,10 +131,8 @@ class Tracer:
         Returns:
             True if the syscall should be traced
         """
-        if self.filter_category == "file":
-            return self.registry.is_file_syscall(syscall_name)
-        if self.filter_category == "network":
-            return self.registry.is_network_syscall(syscall_name)
+        if self.filter_category is not None:
+            return self.registry.get_category(syscall_name) == self.filter_category
         if self.filtered_syscalls is not None:
             return syscall_name in self.filtered_syscalls
 

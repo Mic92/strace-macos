@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from strace_macos.syscalls.category import SyscallCategory
 from strace_macos.syscalls.definitions.debug import DEBUG_SYSCALLS
 from strace_macos.syscalls.definitions.file import FILE_SYSCALLS
 from strace_macos.syscalls.definitions.ipc import IPC_SYSCALLS
@@ -26,78 +27,42 @@ class SyscallRegistry:
         """Initialize the registry with all syscall definitions."""
         self._by_number: dict[int, SyscallDef] = {}
         self._by_name: dict[str, SyscallDef] = {}
-        self._file_syscalls: set[str] = set()
-        self._network_syscalls: set[str] = set()
+        self._categories: dict[str, SyscallCategory] = {}
 
-        # Register file syscalls
-        for syscall in FILE_SYSCALLS:
-            self._register(syscall, is_file=True)
-
-        # Register network syscalls
-        for syscall in NETWORK_SYSCALLS:
-            self._register(syscall, is_network=True)
-
-        # Register process syscalls
-        for syscall in PROCESS_SYSCALLS:
-            self._register(syscall)
-
-        # Register memory syscalls
-        for syscall in MEMORY_SYSCALLS:
-            self._register(syscall)
-
-        # Register signal syscalls
-        for syscall in SIGNAL_SYSCALLS:
-            self._register(syscall)
-
-        # Register IPC syscalls
-        for syscall in IPC_SYSCALLS:
-            self._register(syscall)
-
-        # Register misc syscalls
-        for syscall in MISC_SYSCALLS:
-            self._register(syscall)
-
-        # Register sysinfo syscalls
-        for syscall in SYSINFO_SYSCALLS:
-            self._register(syscall)
-
-        # Register thread syscalls
-        for syscall in THREAD_SYSCALLS:
-            self._register(syscall)
-
-        # Register time syscalls
-        for syscall in TIME_SYSCALLS:
-            self._register(syscall)
-
-        # Register security syscalls
-        for syscall in SECURITY_SYSCALLS:
-            self._register(syscall)
-
-        # Register debug syscalls
-        for syscall in DEBUG_SYSCALLS:
-            self._register(syscall)
+        # Register all syscall categories
+        categories = [
+            (FILE_SYSCALLS, SyscallCategory.FILE),
+            (NETWORK_SYSCALLS, SyscallCategory.NETWORK),
+            (PROCESS_SYSCALLS, SyscallCategory.PROCESS),
+            (MEMORY_SYSCALLS, SyscallCategory.MEMORY),
+            (SIGNAL_SYSCALLS, SyscallCategory.SIGNAL),
+            (IPC_SYSCALLS, SyscallCategory.IPC),
+            (MISC_SYSCALLS, SyscallCategory.MISC),
+            (SYSINFO_SYSCALLS, SyscallCategory.SYSINFO),
+            (THREAD_SYSCALLS, SyscallCategory.THREAD),
+            (TIME_SYSCALLS, SyscallCategory.TIME),
+            (SECURITY_SYSCALLS, SyscallCategory.SECURITY),
+            (DEBUG_SYSCALLS, SyscallCategory.DEBUG),
+        ]
+        for syscalls, category in categories:
+            for syscall in syscalls:
+                self._register(syscall, category=category)
 
     def _register(
         self,
         syscall: SyscallDef,
         *,
-        is_file: bool = False,
-        is_network: bool = False,
+        category: SyscallCategory,
     ) -> None:
         """Register a syscall definition.
 
         Args:
             syscall: The syscall definition to register
-            is_file: Whether this is a file I/O syscall
-            is_network: Whether this is a network syscall
+            category: The category this syscall belongs to
         """
         self._by_number[syscall.number] = syscall
         self._by_name[syscall.name] = syscall
-
-        if is_file:
-            self._file_syscalls.add(syscall.name)
-        if is_network:
-            self._network_syscalls.add(syscall.name)
+        self._categories[syscall.name] = category
 
     def lookup_by_name(self, name: str) -> SyscallDef | None:
         """Look up syscall by name.
@@ -110,27 +75,27 @@ class SyscallRegistry:
         """
         return self._by_name.get(name)
 
-    def is_file_syscall(self, name: str) -> bool:
-        """Check if syscall is a file I/O syscall.
+    def get_category(self, name: str) -> SyscallCategory | None:
+        """Get the category of a syscall.
 
         Args:
             name: The syscall name
 
         Returns:
-            True if this is a file syscall
+            The syscall category, or None if not found
         """
-        return name in self._file_syscalls
+        return self._categories.get(name)
 
-    def is_network_syscall(self, name: str) -> bool:
-        """Check if syscall is a network syscall.
+    def get_syscalls_by_category(self, category: SyscallCategory) -> list[SyscallDef]:
+        """Get all syscalls in a specific category.
 
         Args:
-            name: The syscall name
+            category: The category to filter by
 
         Returns:
-            True if this is a network syscall
+            List of syscall definitions in the category
         """
-        return name in self._network_syscalls
+        return [self._by_name[name] for name, cat in self._categories.items() if cat == category]
 
     def get_all_syscalls(self) -> list[SyscallDef]:
         """Get all registered syscalls.
