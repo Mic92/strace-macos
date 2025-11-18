@@ -243,6 +243,11 @@ MIT License - see LICENSE file for details.
 
 Jörg Thalheim <joerg@thalheim.io>
 
+## Need commercial support or customization?
+
+For commercial support, please contact [Mic92](https://github.com/Mic92/) at
+joerg@thalheim.io or reach out to [Numtide](https://numtide.com/contact/).
+
 ## See Also
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) - Development and contribution guide
