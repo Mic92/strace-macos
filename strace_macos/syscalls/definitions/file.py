@@ -33,6 +33,7 @@ from strace_macos.syscalls.symbols import (
 from strace_macos.syscalls.symbols.file import (
     AT_FLAGS,
     CHFLAGS_FLAGS,
+    CLONE_FLAGS,
     COPYFILE_FLAGS,
     FCNTL_COMMANDS,
     FD_FLAGS,
@@ -423,7 +424,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "getattrlist",
         params=[
             StringParam(),
-            PointerParam(),
+            StructParam("attrlist", ParamDirection.IN),
             PointerParam(),
             UnsignedParam(),
             FlagsParam(FSOPT_FLAGS),
@@ -434,7 +435,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "setattrlist",
         params=[
             StringParam(),
-            PointerParam(),
+            StructParam("attrlist", ParamDirection.IN),
             PointerParam(),
             UnsignedParam(),
             FlagsParam(FSOPT_FLAGS),
@@ -487,7 +488,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "fgetattrlist",
         params=[
             FileDescriptorParam(),
-            PointerParam(),
+            StructParam("attrlist", ParamDirection.IN),
             PointerParam(),
             UnsignedParam(),
             FlagsParam(FSOPT_FLAGS),
@@ -498,7 +499,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "fsetattrlist",
         params=[
             FileDescriptorParam(),
-            PointerParam(),
+            StructParam("attrlist", ParamDirection.IN),
             PointerParam(),
             UnsignedParam(),
             FlagsParam(FSOPT_FLAGS),
@@ -850,7 +851,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         params=[
             DirFdParam(),
             StringParam(),
-            PointerParam(),
+            StructParam("attrlist", ParamDirection.IN),
             PointerParam(),
             UnsignedParam(),
             FlagsParam(FSOPT_FLAGS),
@@ -932,7 +933,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "getattrlistbulk",
         params=[
             FileDescriptorParam(),
-            PointerParam(),
+            StructParam("attrlist", ParamDirection.IN),
             PointerParam(),
             UnsignedParam(),
             UnsignedParam(),
@@ -999,7 +1000,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
             FileDescriptorParam(),
             DirFdParam(),
             StringParam(),
-            IntParam(),
+            FlagsParam(CLONE_FLAGS),
         ],
     ),  # 447
     SyscallDef(
@@ -1211,7 +1212,19 @@ FILE_SYSCALLS: list[SyscallDef] = [
             StringParam(),
             DirFdParam(),
             StringParam(),
-            UnsignedParam(),
+            FlagsParam(CLONE_FLAGS),
         ],
     ),  # 462
+    SyscallDef(
+        numbers.SYS_setattrlistat,
+        "setattrlistat",
+        params=[
+            DirFdParam(),
+            StringParam(),
+            StructParam("attrlist", ParamDirection.IN),
+            PointerParam(),
+            UnsignedParam(),
+            FlagsParam(FSOPT_FLAGS),
+        ],
+    ),  # 524
 ]

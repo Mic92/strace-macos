@@ -140,6 +140,7 @@ class StructDecoder:
 
 
 # Import decoders after StructDecoder is defined to avoid circular import
+from strace_macos.syscalls.struct_decoders.attrlist import AttrListDecoder  # noqa: E402
 from strace_macos.syscalls.struct_decoders.int_ptr import IntPtrDecoder  # noqa: E402
 from strace_macos.syscalls.struct_decoders.msghdr import MsghdrDecoder  # noqa: E402
 from strace_macos.syscalls.struct_decoders.sockaddr import SockaddrDecoder  # noqa: E402
@@ -156,6 +157,7 @@ STRUCT_DECODERS: dict[str, StructDecoder] = {
     "int_ptr": IntPtrDecoder(),
     "winsize": WinsizeDecoder(),
     "termios": TermiosDecoder(),
+    "attrlist": AttrListDecoder(),
 }
 
 

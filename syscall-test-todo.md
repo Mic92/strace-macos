@@ -57,14 +57,14 @@ Legend:
 - [x] fchmod (with octal mode decoding)
 - [ ] fchmod_extended
 - [x] fchown
-- [ ] fchownat
-- [ ] getattrlist
-- [ ] getattrlistat
-- [ ] getattrlistbulk
-- [ ] fgetattrlist
-- [ ] setattrlist
-- [ ] setattrlistat
-- [ ] fsetattrlist
+- [x] fchownat (with AT_SYMLINK_NOFOLLOW flag decoding)
+- [x] getattrlist (with attrlist struct and ATTR_* flag decoding)
+- [x] getattrlistat (with attrlist struct and ATTR_* flag decoding)
+- [x] getattrlistbulk (with attrlist struct and ATTR_* flag decoding)
+- [x] fgetattrlist (with attrlist struct and ATTR_* flag decoding)
+- [x] setattrlist (with attrlist struct and ATTR_* flag decoding)
+- [x] setattrlistat (with attrlist struct and ATTR_* flag decoding)
+- [x] fsetattrlist (with attrlist struct and ATTR_* flag decoding)
 
 ### Extended Attributes
 - [ ] getxattr

@@ -97,6 +97,14 @@ AT_FLAGS: dict[int, str] = {
     0x0080: "AT_REMOVEDIR",
 }
 
+# CLONE_* flags for clonefile() syscalls
+CLONE_FLAGS: dict[int, str] = {
+    0x0001: "CLONE_NOFOLLOW",  # Don't follow symbolic links
+    0x0002: "CLONE_NOOWNERCOPY",  # Don't copy ownership information from source
+    0x0004: "CLONE_ACL",  # Copy access control lists from source
+    0x0008: "CLONE_NOFOLLOW_ANY",  # Don't follow any symbolic links in the path
+}
+
 # Access mode constants (for access(), faccessat())
 ACCESS_MODES: dict[int, str] = {
     0: "F_OK",  # Existence
