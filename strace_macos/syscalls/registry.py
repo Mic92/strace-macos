@@ -2,15 +2,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from strace_macos.syscalls.definitions.debug import DEBUG_SYSCALLS
 from strace_macos.syscalls.definitions.file import FILE_SYSCALLS
 from strace_macos.syscalls.definitions.ipc import IPC_SYSCALLS
 from strace_macos.syscalls.definitions.memory import MEMORY_SYSCALLS
 from strace_macos.syscalls.definitions.misc import MISC_SYSCALLS
 from strace_macos.syscalls.definitions.network import NETWORK_SYSCALLS
 from strace_macos.syscalls.definitions.process import PROCESS_SYSCALLS
+from strace_macos.syscalls.definitions.security import SECURITY_SYSCALLS
 from strace_macos.syscalls.definitions.signal import SIGNAL_SYSCALLS
 from strace_macos.syscalls.definitions.sysinfo import SYSINFO_SYSCALLS
 from strace_macos.syscalls.definitions.thread import THREAD_SYSCALLS
+from strace_macos.syscalls.definitions.time import TIME_SYSCALLS
 
 if TYPE_CHECKING:
     from strace_macos.syscalls.definitions import SyscallDef
@@ -60,6 +63,18 @@ class SyscallRegistry:
 
         # Register thread syscalls
         for syscall in THREAD_SYSCALLS:
+            self._register(syscall)
+
+        # Register time syscalls
+        for syscall in TIME_SYSCALLS:
+            self._register(syscall)
+
+        # Register security syscalls
+        for syscall in SECURITY_SYSCALLS:
+            self._register(syscall)
+
+        # Register debug syscalls
+        for syscall in DEBUG_SYSCALLS:
             self._register(syscall)
 
     def _register(
