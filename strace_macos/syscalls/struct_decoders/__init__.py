@@ -141,10 +141,14 @@ class StructDecoder:
 
 # Import decoders after StructDecoder is defined to avoid circular import
 from strace_macos.syscalls.struct_decoders.attrlist import AttrListDecoder  # noqa: E402
+from strace_macos.syscalls.struct_decoders.fssearchblock import (  # noqa: E402
+    FssearchblockDecoder,
+)
 from strace_macos.syscalls.struct_decoders.int_ptr import IntPtrDecoder  # noqa: E402
 from strace_macos.syscalls.struct_decoders.msghdr import MsghdrDecoder  # noqa: E402
 from strace_macos.syscalls.struct_decoders.sockaddr import SockaddrDecoder  # noqa: E402
 from strace_macos.syscalls.struct_decoders.stat import StatDecoder  # noqa: E402
+from strace_macos.syscalls.struct_decoders.statfs import StatfsDecoder  # noqa: E402
 from strace_macos.syscalls.struct_decoders.termios import TermiosDecoder  # noqa: E402
 from strace_macos.syscalls.struct_decoders.winsize import WinsizeDecoder  # noqa: E402
 
@@ -158,6 +162,9 @@ STRUCT_DECODERS: dict[str, StructDecoder] = {
     "winsize": WinsizeDecoder(),
     "termios": TermiosDecoder(),
     "attrlist": AttrListDecoder(),
+    "statfs": StatfsDecoder(),
+    "statfs64": StatfsDecoder(),  # Same layout on modern macOS
+    "fssearchblock": FssearchblockDecoder(),
 }
 
 
