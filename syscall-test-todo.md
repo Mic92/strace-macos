@@ -67,11 +67,11 @@ Legend:
 - [x] fsetattrlist (with attrlist struct and ATTR_* flag decoding)
 
 ### Extended Attributes
-- [ ] getxattr
-- [ ] fgetxattr
-- [ ] setxattr
-- [ ] fsetxattr
-- [ ] fremovexattr
+- [x] getxattr (with XATTR_* flag decoding)
+- [x] fgetxattr (with XATTR_* flag decoding)
+- [x] setxattr (with XATTR_* flag decoding)
+- [x] fsetxattr (with XATTR_* flag decoding)
+- [x] fremovexattr (with XATTR_* flag decoding)
 
 ### File System Operations
 - [x] link
@@ -122,11 +122,11 @@ Legend:
 - [ ] mount
 - [ ] unmount
 - [ ] fmount
-- [ ] statfs
+- [x] statfs (with struct statfs decoding)
 - [ ] statfs64
-- [ ] fstatfs
+- [x] fstatfs (with struct statfs decoding)
 - [ ] fstatfs64
-- [ ] getfsstat
+- [x] getfsstat (with MNT_* flag decoding)
 - [ ] getfsstat64
 
 ### Guarded File Descriptors
@@ -147,17 +147,17 @@ Legend:
 - [ ] openbyid_np
 
 ### File System Control & Special
-- [ ] fsctl
-- [ ] ffsctl
-- [ ] fsgetpath
+- [x] fsctl
+- [x] ffsctl
+- [x] fsgetpath
 - [ ] fsgetpath_ext
-- [ ] searchfs
-- [ ] copyfile
-- [ ] clonefileat
-- [ ] exchangedata
-- [ ] delete
-- [ ] undelete
-- [ ] revoke
+- [x] searchfs (with fssearchblock struct and SRCHFS_* flag decoding)
+- [x] copyfile (with COPYFILE_* flag decoding)
+- [x] clonefileat (tested earlier with CLONE_* flags)
+- [x] exchangedata
+- [ ] delete (conflicts with C++ keyword - skipped)
+- [x] undelete
+- [x] revoke
 - [ ] getfh
 - [ ] fhopen
 
