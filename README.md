@@ -57,11 +57,16 @@ strace -o trace.txt /usr/local/bin/git status
 # JSON output
 strace --json /usr/local/bin/git status > trace.jsonl
 
-# Filter syscalls
+# Filter syscalls by name
 strace -e trace=open,close /usr/local/bin/git status
+
+# Filter by category*
 strace -e trace=file /usr/local/bin/git status    # All file operations
 strace -e trace=network /usr/local/bin/curl https://example.com   # Network syscalls only
+strace -e trace=process /usr/local/bin/git status # Process lifecycle syscalls
 ```
+
+\* See [Syscall Filtering](#syscall-filtering) for all supported categories.
 
 ### Attach to running process
 
@@ -79,6 +84,63 @@ strace -c /usr/local/bin/git status
 #  32.10    0.000876           8       110           write
 #  ...
 ```
+
+## Syscall Filtering
+
+strace-macos supports filtering syscalls by name or category using the `-e trace=` option.
+
+### Filter by Syscall Name
+
+Specify one or more syscall names separated by commas:
+
+```bash
+strace -e trace=open,close,read,write /usr/local/bin/git status
+```
+
+### Filter by Category
+
+Use predefined categories to trace groups of related syscalls:
+
+| Category | Description | Example Syscalls |
+|----------|-------------|------------------|
+| `file` | File operations | open, close, read, write, stat, unlink |
+| `network` | Network operations | socket, connect, send, recv, bind |
+| `process` | Process lifecycle | fork, exec, wait, exit, kill |
+| `memory` | Memory management | mmap, munmap, brk, mprotect |
+| `signal` | Signal handling | signal, sigaction, sigprocmask, kill |
+| `ipc` | Inter-process communication | pipe, shm_open, msgget, semop |
+| `thread` | Thread operations | pthread_create, bsdthread_register |
+| `time` | Time and timers | gettimeofday, setitimer, utimes |
+| `sysinfo` | System information | sysctl, getpid, getuid, uname |
+| `security` | Security/MAC operations | \_\_mac_\*, csops, csrctl |
+| `debug` | Debugging and tracing | ptrace, kdebug_trace, panic_with_data |
+| `misc` | Miscellaneous syscalls | ioctl, fcntl, kqueue, connectx |
+
+Example:
+
+```bash
+# Trace only file operations
+strace -e trace=file /usr/local/bin/git status
+
+# Trace only network syscalls
+strace -e trace=network /usr/local/bin/curl https://example.com
+
+# Trace process management syscalls
+strace -e trace=process /usr/local/bin/git status
+```
+
+### Comparison with Linux strace
+
+| Feature | Linux strace | strace-macos |
+|---------|-------------|--------------|
+| Filter by syscall name | ✅ `-e trace=open,close` | ✅ `-e trace=open,close` |
+| Filter by category | ✅ `-e trace=file` | ✅ `-e trace=file` |
+| Negation (`!`) | ✅ `-e trace=!open` | ❌ Not yet |
+| Regex filtering | ✅ `-e trace=/^open/` | ❌ Not yet |
+| Path filtering | ✅ `-P /etc/passwd` | ❌ Not yet |
+| FD filtering | ✅ `-e trace-fd=3` | ❌ Not yet |
+| `%desc` category | ✅ FD-related syscalls | ❌ Not yet |
+| Percent prefix | ✅ `%file` or `file` | ⚠️ Only `file` |
 
 ## Requirements
 
@@ -123,24 +185,25 @@ The tracer uses LLDB's Python bindings to:
 ## Implementation Status
 
 **Working**:
-- Spawn and trace new processes
-- Basic syscall capture (entry/exit)
-- Argument decoding (integers, strings, pointers)
-- Symbolic flag decoding (O_RDONLY, etc.)
-- Error code decoding (ENOENT, etc.)
-- JSON and text output formats
-- Color output with syntax highlighting
-
-**In Progress**:
-- Attach to running processes
-- Syscall filtering (`-e trace=`)
-- Network syscalls (socket, connect, etc.)
-- Summary statistics (`-c`)
-- Struct decoding (stat, etc.)
+- Spawn and trace new processes ✅
+- Attach to running processes ✅
+- Basic syscall capture (entry/exit) ✅
+- Argument decoding (integers, strings, pointers, buffers, iovecs) ✅
+- Symbolic flag decoding (O_RDONLY, etc.) ✅
+- Error code decoding (ENOENT, etc.) ✅
+- Struct decoding (stat, sockaddr, msghdr, etc.) ✅
+- Syscall filtering by name and category ✅
+- Summary statistics (`-c`) ✅
+- JSON and text output formats ✅
+- Color output with syntax highlighting ✅
 
 **Planned**:
 - Multi-threaded process support
 - Follow forks (`-f`)
+- Negation filtering (`-e trace=!open`)
+- Regex filtering (`-e trace=/^open/`)
+- Path-based filtering (`-P /path`)
+- FD-based filtering (`-e trace-fd=3`)
 - String truncation control (`-s`)
 - Relative/absolute timestamps (`-t`, `-tt`, `-ttt`)
 
@@ -162,13 +225,15 @@ strace-macos aims for compatibility with Linux strace where possible:
 | Feature | Linux strace | strace-macos |
 |---------|-------------|--------------|
 | Basic tracing | ✅ | ✅ |
-| Attach to PID | ✅ | 🚧 |
-| Syscall filtering | ✅ | 🚧 |
-| Summary stats | ✅ | 🚧 |
+| Attach to PID | ✅ | ✅ |
+| Syscall filtering* | ✅ | ✅ |
+| Summary stats | ✅ | ✅ |
 | Follow forks | ✅ | ⏳ |
 | Symbolic decoding | ✅ | ✅ |
 | JSON output | ❌ | ✅ |
 | Color output | ❌ | ✅ |
+
+\* See [Syscall Filtering](#syscall-filtering) for detailed feature comparison.
 
 ## License
 
