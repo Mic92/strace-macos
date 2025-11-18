@@ -18,7 +18,7 @@ Legend:
 - [x] write
 - [ ] write_nocancel
 - [x] unlink
-- [ ] unlinkat
+- [x] unlinkat (with AT_FDCWD and AT_REMOVEDIR flag decoding)
 
 ### File Descriptor Operations
 - [x] dup
@@ -50,13 +50,13 @@ Legend:
 - [x] lstat64
 - [ ] lstat_extended
 - [ ] lstat64_extended
-- [ ] access
-- [ ] chmod
+- [x] access (with F_OK, R_OK, W_OK, X_OK flag decoding)
+- [x] chmod (with octal mode decoding)
 - [ ] chmod_extended
-- [ ] chown
-- [ ] fchmod
+- [x] chown
+- [x] fchmod (with octal mode decoding)
 - [ ] fchmod_extended
-- [ ] fchown
+- [x] fchown
 - [ ] fchownat
 - [ ] getattrlist
 - [ ] getattrlistat
@@ -74,19 +74,19 @@ Legend:
 - [ ] fremovexattr
 
 ### File System Operations
-- [ ] link
-- [ ] linkat
-- [ ] symlink
-- [ ] symlinkat
-- [ ] readlink
-- [ ] readlinkat
-- [ ] rename
-- [ ] renameat
+- [x] link
+- [x] linkat (with AT_FDCWD decoding)
+- [x] symlink
+- [x] symlinkat (with AT_FDCWD decoding)
+- [x] readlink
+- [x] readlinkat (with AT_FDCWD decoding)
+- [x] rename
+- [x] renameat (with AT_FDCWD decoding)
 - [ ] renameatx_np
-- [ ] mkdir
+- [x] mkdir (with octal mode decoding)
 - [ ] mkdir_extended
-- [ ] mkdirat
-- [ ] rmdir
+- [x] mkdirat (with AT_FDCWD and octal mode decoding)
+- [x] rmdir
 - [ ] mkfifo
 - [ ] mkfifo_extended
 - [ ] mkfifoat

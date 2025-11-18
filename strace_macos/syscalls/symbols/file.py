@@ -400,12 +400,6 @@ def decode_file_type_mode(value: int) -> str:
     return f"{file_type_str}|0{perms:o}"
 
 
-def decode_dirfd(value: int) -> str:
-    if value == AT_FDCWD:
-        return "AT_FDCWD"
-    return str(value)
-
-
 def decode_access_mode(value: int) -> str:
     if value == 0:
         return "F_OK"

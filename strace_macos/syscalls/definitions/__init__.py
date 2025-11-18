@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
@@ -24,6 +25,7 @@ from strace_macos.syscalls.args import (
 )
 from strace_macos.syscalls.struct_decoders import get_struct_decoder
 from strace_macos.syscalls.struct_decoders.iovec import IovecArrayDecoder
+from strace_macos.syscalls.symbols.file import AT_FDCWD
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -176,6 +178,35 @@ class StringParam(Param):
         """Decode string pointer to StringArg."""
         string_val = self._read_string(process, raw_value)
         return StringArg(string_val)
+
+
+class DirFdParam(Param):
+    """Parameter decoder for directory file descriptors (like AT_FDCWD).
+
+    File descriptors are 32-bit signed integers on macOS.
+    """
+
+    def decode(
+        self,
+        tracer: Any,
+        process: Any,  # noqa: ARG002
+        raw_value: int,
+        all_args: list[int],  # noqa: ARG002
+        *,
+        at_entry: bool,  # noqa: ARG002
+    ) -> SyscallArg:
+        """Decode directory fd to IntArg with symbolic AT_FDCWD."""
+
+        # File descriptors are 32-bit signed integers
+        signed_val = ctypes.c_int32(raw_value & 0xFFFFFFFF).value
+
+        if tracer.no_abbrev:
+            return IntArg(signed_val, f"0x{raw_value:x}")
+
+        # Decode AT_FDCWD
+        if signed_val == AT_FDCWD:
+            return IntArg(signed_val, "AT_FDCWD")
+        return IntArg(signed_val, None)
 
 
 class PointerParam(Param):
