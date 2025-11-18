@@ -9,8 +9,12 @@ Tests coverage for:
 - utimes, futimes (file times)
 - mkfifo, mkfifoat (named pipes)
 - mknod, mknodat (special files)
-- getattrlistat (extended attributes)
+- getattrlistat, getattrlistbulk, fchownat (extended attributes)
 - clonefileat, fclonefileat (APFS clones)
+- statfs, fstatfs, getfsstat (filesystem statistics)
+- getxattr, fgetxattr, setxattr, fsetxattr, fremovexattr (extended attributes)
+- fsctl, ffsctl, fsgetpath (filesystem control)
+- copyfile, searchfs, exchangedata, undelete, revoke (special filesystem operations)
 """
 
 from __future__ import annotations
@@ -432,6 +436,142 @@ class TestFileUtilitiesSyscalls(unittest.TestCase):
             assert any(
                 "AT_SYMLINK_NOFOLLOW" in f or "0x20" in f or "0x0020" in f for f in flags_seen
             ), f"Should have AT_SYMLINK_NOFOLLOW flag, got flags: {flags_seen}"
+
+    def test_statfs_operations(self) -> None:
+        """Test statfs family syscalls decode properly."""
+        stat_calls = [sc for sc in self.syscalls if sc.get("syscall") == "statfs"]
+        fstat_calls = [sc for sc in self.syscalls if sc.get("syscall") == "fstatfs"]
+        getfsstat_calls = [sc for sc in self.syscalls if sc.get("syscall") == "getfsstat"]
+
+        # Should have statfs calls
+        assert len(stat_calls) >= 2, f"Should have at least 2 statfs calls, got {len(stat_calls)}"
+        for call in stat_calls:
+            # Expects: path, statfs_struct
+            assert len(call["args"]) == 2, f"statfs should have 2 args, got {len(call['args'])}"
+            # First arg should be a path string
+            assert isinstance(call["args"][0], str)
+            # Second arg should be struct (dict) or pointer
+            assert isinstance(call["args"][1], (dict, str))
+
+        # Should have fstatfs calls
+        assert len(fstat_calls) >= 1, f"Should have at least 1 fstatfs call, got {len(fstat_calls)}"
+
+        # Should have getfsstat calls
+        assert len(getfsstat_calls) >= 2, (
+            f"Should have at least 2 getfsstat calls, got {len(getfsstat_calls)}"
+        )
+
+    def test_xattr_operations(self) -> None:
+        """Test extended attribute syscalls decode properly."""
+        getxattr_calls = [sc for sc in self.syscalls if sc.get("syscall") == "getxattr"]
+        fgetxattr_calls = [sc for sc in self.syscalls if sc.get("syscall") == "fgetxattr"]
+        setxattr_calls = [sc for sc in self.syscalls if sc.get("syscall") == "setxattr"]
+        fsetxattr_calls = [sc for sc in self.syscalls if sc.get("syscall") == "fsetxattr"]
+        fremovexattr_calls = [sc for sc in self.syscalls if sc.get("syscall") == "fremovexattr"]
+
+        # Should have getxattr with different flags
+        assert len(getxattr_calls) >= 2, (
+            f"Should have at least 2 getxattr calls, got {len(getxattr_calls)}"
+        )
+        if getxattr_calls:
+            # Check for XATTR_NOFOLLOW flag
+            flags_seen = set()
+            for call in getxattr_calls:
+                # Expects: path, name, value, size, position, options
+                assert len(call["args"]) == 6, (
+                    f"getxattr should have 6 args, got {len(call['args'])}"
+                )
+                flag_arg = call["args"][5]
+                if isinstance(flag_arg, str):
+                    flags_seen.add(flag_arg)
+
+            # At least one should have XATTR_NOFOLLOW
+            assert any("XATTR_NOFOLLOW" in f for f in flags_seen), (
+                f"Should have XATTR_NOFOLLOW flag, got flags: {flags_seen}"
+            )
+
+        # Should have various xattr syscalls
+        assert len(fgetxattr_calls) >= 1
+        assert len(setxattr_calls) >= 2  # Multiple calls with different flags
+        assert len(fsetxattr_calls) >= 1
+        assert len(fremovexattr_calls) >= 1
+
+    def test_fsctl_operations(self) -> None:
+        """Test filesystem control syscalls decode properly."""
+        fsctl_calls = [sc for sc in self.syscalls if sc.get("syscall") == "fsctl"]
+        ffsctl_calls = [sc for sc in self.syscalls if sc.get("syscall") == "ffsctl"]
+        fsgetpath_calls = [sc for sc in self.syscalls if sc.get("syscall") == "fsgetpath"]
+
+        # Should have fsctl
+        assert len(fsctl_calls) >= 1, f"Should have at least 1 fsctl call, got {len(fsctl_calls)}"
+
+        # Should have ffsctl
+        assert len(ffsctl_calls) >= 1, (
+            f"Should have at least 1 ffsctl call, got {len(ffsctl_calls)}"
+        )
+
+        # Should have fsgetpath
+        assert len(fsgetpath_calls) >= 1, (
+            f"Should have at least 1 fsgetpath call, got {len(fsgetpath_calls)}"
+        )
+
+    def test_copyfile_and_searchfs_operations(self) -> None:
+        """Test copyfile and searchfs syscalls decode properly."""
+        copyfile_calls = [sc for sc in self.syscalls if sc.get("syscall") == "copyfile"]
+        searchfs_calls = [sc for sc in self.syscalls if sc.get("syscall") == "searchfs"]
+
+        # Should have copyfile with different flags
+        assert len(copyfile_calls) >= 2, (
+            f"Should have at least 2 copyfile calls, got {len(copyfile_calls)}"
+        )
+        if copyfile_calls:
+            # Check for different flags (COPYFILE_DATA, COPYFILE_XATTR)
+            flags_seen = set()
+            for call in copyfile_calls:
+                # Expects: src, dst, state, flags
+                assert len(call["args"]) == 4, (
+                    f"copyfile should have 4 args, got {len(call['args'])}"
+                )
+                flag_arg = call["args"][3]
+                if isinstance(flag_arg, str):
+                    flags_seen.add(flag_arg)
+
+            # Should have tested different flags
+            assert any("COPYFILE_DATA" in f for f in flags_seen) or any(
+                "COPYFILE_XATTR" in f for f in flags_seen
+            ), f"Should have COPYFILE_DATA or COPYFILE_XATTR flag, got flags: {flags_seen}"
+
+        # Should have searchfs with SRCHFS_MATCHFILES flag
+        assert len(searchfs_calls) >= 1, (
+            f"Should have at least 1 searchfs call, got {len(searchfs_calls)}"
+        )
+        if searchfs_calls:
+            for call in searchfs_calls:
+                # Expects: path, searchblock, nummatches, options, timeout, searchstate
+                assert len(call["args"]) == 6, (
+                    f"searchfs should have 6 args, got {len(call['args'])}"
+                )
+
+    def test_exchangedata_undelete_revoke(self) -> None:
+        """Test exchangedata, undelete, and revoke syscalls."""
+        exchangedata_calls = [sc for sc in self.syscalls if sc.get("syscall") == "exchangedata"]
+        undelete_calls = [sc for sc in self.syscalls if sc.get("syscall") == "undelete"]
+        revoke_calls = [sc for sc in self.syscalls if sc.get("syscall") == "revoke"]
+
+        # Should have exchangedata
+        assert len(exchangedata_calls) >= 1, (
+            f"Should have at least 1 exchangedata call, got {len(exchangedata_calls)}"
+        )
+
+        # Should have undelete (will fail on modern macOS but should be traced)
+        assert len(undelete_calls) >= 1, (
+            f"Should have at least 1 undelete call, got {len(undelete_calls)}"
+        )
+
+        # Should have revoke
+        assert len(revoke_calls) >= 1, (
+            f"Should have at least 1 revoke call, got {len(revoke_calls)}"
+        )
 
 
 if __name__ == "__main__":
