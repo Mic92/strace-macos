@@ -5,7 +5,6 @@ from __future__ import annotations
 from strace_macos.syscalls.symbols.errno import decode_errno
 from strace_macos.syscalls.symbols.file import (
     decode_access_mode,
-    decode_dirfd,
     decode_file_mode,
     decode_file_type_mode,
     decode_flock_op,
@@ -17,7 +16,6 @@ from strace_macos.syscalls.symbols.memory import decode_prot_flags
 
 __all__ = [
     "decode_access_mode",
-    "decode_dirfd",
     "decode_errno",
     "decode_file_mode",
     "decode_file_type_mode",

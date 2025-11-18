@@ -10,6 +10,7 @@ from strace_macos.syscalls.definitions import (
     BufferParam,
     ConstParam,
     CustomParam,
+    DirFdParam,
     FileDescriptorParam,
     FlagsParam,
     IntParam,
@@ -25,7 +26,6 @@ from strace_macos.syscalls.definitions import (
 )
 from strace_macos.syscalls.symbols import (
     decode_access_mode,
-    decode_dirfd,
     decode_flock_op,
     decode_ioctl_cmd,
     decode_open_flags,
@@ -405,7 +405,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_openat_dprotected_np,
         "openat_dprotected_np",
         params=[
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
             CustomParam(decode_open_flags),
             VariantParam(
@@ -778,7 +778,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_openat,
         "openat",
         params=[
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
             CustomParam(decode_open_flags),
             VariantParam(
@@ -798,7 +798,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_fstatat,
         "fstatat",
         params=[
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
             StructParam("stat", ParamDirection.OUT),
             FlagsParam(AT_FLAGS),
@@ -808,9 +808,9 @@ FILE_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_linkat,
         "linkat",
         params=[
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
             FlagsParam(AT_FLAGS),
         ],
@@ -819,7 +819,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_unlinkat,
         "unlinkat",
         params=[
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
             FlagsParam(AT_FLAGS),
         ],
@@ -828,7 +828,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_readlinkat,
         "readlinkat",
         params=[
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
             PointerParam(),
             UnsignedParam(),
@@ -837,18 +837,18 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_symlinkat,
         "symlinkat",
-        params=[StringParam(), CustomParam(decode_dirfd), StringParam()],
+        params=[StringParam(), DirFdParam(), StringParam()],
     ),  # 416
     SyscallDef(
         numbers.SYS_mkdirat,
         "mkdirat",
-        params=[CustomParam(decode_dirfd), StringParam(), OctalParam()],
+        params=[DirFdParam(), StringParam(), OctalParam()],
     ),  # 417
     SyscallDef(
         numbers.SYS_getattrlistat,
         "getattrlistat",
         params=[
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
             PointerParam(),
             PointerParam(),
@@ -860,7 +860,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_fchmodat,
         "fchmodat",
         params=[
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
             OctalParam(),
             FlagsParam(AT_FLAGS),
@@ -870,7 +870,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_fchownat,
         "fchownat",
         params=[
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
             UnsignedParam(),
             UnsignedParam(),
@@ -881,7 +881,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_fstatat64,
         "fstatat64",
         params=[
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
             StructParam("stat64", ParamDirection.OUT),
             FlagsParam(AT_FLAGS),
@@ -891,7 +891,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_openat_nocancel,
         "__openat_nocancel",
         params=[
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
             CustomParam(decode_open_flags),
             VariantParam(
@@ -906,9 +906,9 @@ FILE_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_renameat,
         "renameat",
         params=[
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
         ],
     ),  # 426
@@ -916,7 +916,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_faccessat,
         "faccessat",
         params=[
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
             CustomParam(decode_access_mode),
             FlagsParam(AT_FLAGS),
@@ -997,7 +997,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "fclonefileat",
         params=[
             FileDescriptorParam(),
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
             IntParam(),
         ],
@@ -1017,13 +1017,13 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_mkfifoat,
         "mkfifoat",
-        params=[CustomParam(decode_dirfd), StringParam(), OctalParam()],
+        params=[DirFdParam(), StringParam(), OctalParam()],
     ),  # 456
     SyscallDef(
         numbers.SYS_mknodat,
         "mknodat",
         params=[
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
             OctalParam(),
             IntParam(),
@@ -1033,9 +1033,9 @@ FILE_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_renameatx_np,
         "renameatx_np",
         params=[
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
             UnsignedParam(),
         ],
@@ -1207,9 +1207,9 @@ FILE_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_clonefileat,
         "clonefileat",
         params=[
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
-            CustomParam(decode_dirfd),
+            DirFdParam(),
             StringParam(),
             UnsignedParam(),
         ],
