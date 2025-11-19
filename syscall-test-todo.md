@@ -553,26 +553,24 @@ Legend:
 
 ## Test Coverage Summary
 
-### Completely Untested Areas
-- IPC mechanisms (message queues, semaphores, shared memory)
-- Kqueue/kevent operations
+### Remaining Untested Areas
 - Psynch operations (pthread synchronization)
-- Signal handling (beyond basic capture)
 - Debug/tracing syscalls
 - Security/MAC syscalls
 - System information queries (sysctl, sysctlbyname)
-- Thread management
-- Time/timer operations (gettimeofday, setitimer, etc.)
+- Thread management (bsdthread_*)
+- Time/timer operations (gettimeofday, setitimer, getitimer)
 - Process lifecycle (fork, execve, wait4)
-- All *_extended variants (stat_extended, mkdir_extended, etc.)
+- *_extended variants
 - Directory reading (getdirentries, getdirentries64)
-- Some guarded file descriptors (guarded_open_np, etc.)
-- Protected/extended open variants (open_dprotected_np, etc.)
+- Guarded file descriptors
+- Protected/extended open variants
+- Mount/unmount operations
 
 ### Priority Test Candidates (Remaining)
-1. **Process**: fork, execve, wait4, getpid, getuid/geteuid (high-priority fundamentals)
-2. **Kqueue**: kqueue, kevent (modern macOS event notification)
-3. **Signal**: sigaction, sigprocmask, kill (important for process control)
-4. **Extended I/O**: preadv, pwritev (iovec variants of pread/pwrite)
-5. **Time**: gettimeofday, setitimer, getitimer (commonly used in profiling)
-6. **Directory reading**: getdirentries64 (commonly used directory iteration)
+1. **Process lifecycle**: fork, execve, wait4 (high-priority fundamentals, but complex to test)
+2. **Extended I/O**: preadv, pwritev (iovec variants of pread/pwrite)
+3. **Time/timer**: gettimeofday, setitimer, getitimer (commonly used in profiling)
+4. **Directory reading**: getdirentries64 (commonly used directory iteration)
+5. **Thread management**: bsdthread_* (if public prototypes exist)
+6. **System info**: sysctl, sysctlbyname (widely used for system queries)
