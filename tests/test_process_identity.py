@@ -113,6 +113,7 @@ class TestProcessIdentity(unittest.TestCase):
             "issetugid",
         ]:
             calls = sth.filter_syscalls(self.syscalls, syscall_name)
+            sth.assert_min_call_count(calls, 1, syscall_name)
             for call in calls:
                 sth.assert_arg_count(call, 0, syscall_name)
 
@@ -127,6 +128,7 @@ class TestProcessIdentity(unittest.TestCase):
             "setlogin",
         ]:
             calls = sth.filter_syscalls(self.syscalls, syscall_name)
+            sth.assert_min_call_count(calls, 1, syscall_name)
             for call in calls:
                 sth.assert_arg_count(call, 1, syscall_name)
 
@@ -140,11 +142,13 @@ class TestProcessIdentity(unittest.TestCase):
             "getlogin",
         ]:
             calls = sth.filter_syscalls(self.syscalls, syscall_name)
+            sth.assert_min_call_count(calls, 1, syscall_name)
             for call in calls:
                 sth.assert_arg_count(call, 2, syscall_name)
 
         # Four-argument syscall (initgroups)
         initgroups_calls = sth.filter_syscalls(self.syscalls, "initgroups")
+        sth.assert_min_call_count(initgroups_calls, 1, "initgroups")
         for call in initgroups_calls:
             sth.assert_arg_count(call, 4, "initgroups")
 

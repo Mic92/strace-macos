@@ -83,93 +83,103 @@ class TestFileMetadataSyscalls(unittest.TestCase):
         """Test chmod() and fchmod() with octal mode decoding."""
         # Check chmod calls
         chmod_calls = sth.filter_syscalls(self.syscalls, "chmod")
-        if chmod_calls:
-            # Mode should be decoded as octal string like "0644"
-            for call in chmod_calls:
-                sth.assert_octal_mode(call, 1, "chmod")
-                # Should be one of our test modes (includes directory chmod calls)
-                mode_arg = call["args"][1]
-                assert mode_arg in ["0644", "0755", "0700", "0600"], (
-                    f"Unexpected chmod mode: {mode_arg}"
-                )
+        sth.assert_min_call_count(chmod_calls, 3, "chmod")
+
+        # Mode should be decoded as octal string like "0644"
+        for call in chmod_calls:
+            sth.assert_octal_mode(call, 1, "chmod")
+            # Should be one of our test modes (includes directory chmod calls)
+            mode_arg = call["args"][1]
+            assert mode_arg in ["0644", "0755", "0700", "0600"], (
+                f"Unexpected chmod mode: {mode_arg}"
+            )
 
         # Check fchmod calls
         fchmod_calls = sth.filter_syscalls(self.syscalls, "fchmod")
-        if fchmod_calls:
-            for call in fchmod_calls:
-                sth.assert_arg_type(call, 0, int, "fchmod fd")
-                sth.assert_octal_mode(call, 1, "fchmod")
+        sth.assert_min_call_count(fchmod_calls, 2, "fchmod")
+
+        for call in fchmod_calls:
+            sth.assert_arg_type(call, 0, int, "fchmod fd")
+            sth.assert_octal_mode(call, 1, "fchmod")
 
     def test_chown_arguments(self) -> None:
         """Test chown() and fchown() syscalls."""
         # Check chown calls
         chown_calls = sth.filter_syscalls(self.syscalls, "chown")
-        if chown_calls:
-            call = chown_calls[0]
-            sth.assert_arg_count(call, 3, "chown")
-            sth.assert_arg_type(call, 0, str, "chown path")
-            sth.assert_arg_type(call, 1, int, "chown uid")
-            sth.assert_arg_type(call, 2, int, "chown gid")
+        sth.assert_min_call_count(chown_calls, 2, "chown")
+
+        call = chown_calls[0]
+        sth.assert_arg_count(call, 3, "chown")
+        sth.assert_arg_type(call, 0, str, "chown path")
+        sth.assert_arg_type(call, 1, int, "chown uid")
+        sth.assert_arg_type(call, 2, int, "chown gid")
 
         # Check fchown calls
         fchown_calls = sth.filter_syscalls(self.syscalls, "fchown")
-        if fchown_calls:
-            call = fchown_calls[0]
-            sth.assert_arg_count(call, 3, "fchown")
-            sth.assert_arg_type(call, 0, int, "fchown fd")
-            sth.assert_arg_type(call, 1, int, "fchown uid")
-            sth.assert_arg_type(call, 2, int, "fchown gid")
+        sth.assert_min_call_count(fchown_calls, 2, "fchown")
+
+        call = fchown_calls[0]
+        sth.assert_arg_count(call, 3, "fchown")
+        sth.assert_arg_type(call, 0, int, "fchown fd")
+        sth.assert_arg_type(call, 1, int, "fchown uid")
+        sth.assert_arg_type(call, 2, int, "fchown gid")
 
     def test_link_syscalls_arguments(self) -> None:
         """Test link() and linkat() for hard link creation."""
         # Check link calls
         link_calls = sth.filter_syscalls(self.syscalls, "link")
-        if link_calls:
-            call = link_calls[0]
-            sth.assert_arg_count(call, 2, "link")
-            sth.assert_arg_type(call, 0, str, "link oldpath")
-            sth.assert_arg_type(call, 1, str, "link newpath")
+        sth.assert_min_call_count(link_calls, 1, "link")
+
+        call = link_calls[0]
+        sth.assert_arg_count(call, 2, "link")
+        sth.assert_arg_type(call, 0, str, "link oldpath")
+        sth.assert_arg_type(call, 1, str, "link newpath")
 
         # Check linkat calls
         linkat_calls = sth.filter_syscalls(self.syscalls, "linkat")
-        if linkat_calls:
-            call = linkat_calls[0]
-            sth.assert_arg_count(call, 5, "linkat")
-            sth.assert_at_fdcwd(call, 0, "linkat olddirfd")
+        sth.assert_min_call_count(linkat_calls, 1, "linkat")
+
+        call = linkat_calls[0]
+        sth.assert_arg_count(call, 5, "linkat")
+        sth.assert_at_fdcwd(call, 0, "linkat olddirfd")
 
     def test_symlink_syscalls_arguments(self) -> None:
         """Test symlink(), symlinkat(), readlink(), and readlinkat()."""
         # Check symlink
         symlink_calls = sth.filter_syscalls(self.syscalls, "symlink")
-        if symlink_calls:
-            call = symlink_calls[0]
-            sth.assert_arg_count(call, 2, "symlink")
-            sth.assert_arg_type(call, 0, str, "symlink target")
-            sth.assert_arg_type(call, 1, str, "symlink linkpath")
-            assert "/tmp/target" in call["args"][0], "symlink should reference target"  # noqa: S108
+        sth.assert_min_call_count(symlink_calls, 1, "symlink")
+
+        call = symlink_calls[0]
+        sth.assert_arg_count(call, 2, "symlink")
+        sth.assert_arg_type(call, 0, str, "symlink target")
+        sth.assert_arg_type(call, 1, str, "symlink linkpath")
+        assert "/tmp/target" in call["args"][0], "symlink should reference target"  # noqa: S108
 
         # Check readlink
         readlink_calls = sth.filter_syscalls(self.syscalls, "readlink")
-        if readlink_calls:
-            call = readlink_calls[0]
-            sth.assert_arg_count(call, 3, "readlink")
-            sth.assert_arg_type(call, 0, str, "readlink path")
-            # buf should be decoded as output buffer
-            assert isinstance(call["args"][1], (str, dict)), "readlink buf should be decoded"
+        sth.assert_min_call_count(readlink_calls, 1, "readlink")
+
+        call = readlink_calls[0]
+        sth.assert_arg_count(call, 3, "readlink")
+        sth.assert_arg_type(call, 0, str, "readlink path")
+        # buf should be decoded as output buffer
+        assert isinstance(call["args"][1], (str, dict)), "readlink buf should be decoded"
 
         # Check symlinkat
         symlinkat_calls = sth.filter_syscalls(self.syscalls, "symlinkat")
-        if symlinkat_calls:
-            call = symlinkat_calls[0]
-            sth.assert_arg_count(call, 3, "symlinkat")
-            sth.assert_at_fdcwd(call, 1, "symlinkat newdirfd")
+        sth.assert_min_call_count(symlinkat_calls, 1, "symlinkat")
+
+        call = symlinkat_calls[0]
+        sth.assert_arg_count(call, 3, "symlinkat")
+        sth.assert_at_fdcwd(call, 1, "symlinkat newdirfd")
 
         # Check readlinkat
         readlinkat_calls = sth.filter_syscalls(self.syscalls, "readlinkat")
-        if readlinkat_calls:
-            call = readlinkat_calls[0]
-            sth.assert_arg_count(call, 4, "readlinkat")
-            sth.assert_at_fdcwd(call, 0, "readlinkat dirfd")
+        sth.assert_min_call_count(readlinkat_calls, 1, "readlinkat")
+
+        call = readlinkat_calls[0]
+        sth.assert_arg_count(call, 4, "readlinkat")
+        sth.assert_at_fdcwd(call, 0, "readlinkat dirfd")
 
     def test_directory_syscalls_arguments(self) -> None:
         """Test mkdir(), rmdir(), mkdirat() with mode decoding."""
@@ -184,15 +194,16 @@ class TestFileMetadataSyscalls(unittest.TestCase):
 
         # Check mkdirat
         mkdirat_calls = sth.filter_syscalls(self.syscalls, "mkdirat")
-        if mkdirat_calls:
-            call = mkdirat_calls[0]
-            sth.assert_arg_count(call, 3, "mkdirat")
-            sth.assert_at_fdcwd(call, 0, "mkdirat dirfd")
-            sth.assert_octal_mode(call, 2, "mkdirat")
+        sth.assert_min_call_count(mkdirat_calls, 1, "mkdirat")
+
+        call = mkdirat_calls[0]
+        sth.assert_arg_count(call, 3, "mkdirat")
+        sth.assert_at_fdcwd(call, 0, "mkdirat dirfd")
+        sth.assert_octal_mode(call, 2, "mkdirat")
 
         # Check rmdir
         rmdir_calls = sth.filter_syscalls(self.syscalls, "rmdir")
-        sth.assert_min_call_count(rmdir_calls, 3, "rmdir")
+        sth.assert_min_call_count(rmdir_calls, 6, "rmdir")
 
         for call in rmdir_calls:
             sth.assert_arg_count(call, 1, "rmdir")
@@ -202,19 +213,21 @@ class TestFileMetadataSyscalls(unittest.TestCase):
         """Test rename() and renameat() syscalls."""
         # Check rename
         rename_calls = sth.filter_syscalls(self.syscalls, "rename")
-        if rename_calls:
-            call = rename_calls[0]
-            sth.assert_arg_count(call, 2, "rename")
-            sth.assert_arg_type(call, 0, str, "rename oldpath")
-            sth.assert_arg_type(call, 1, str, "rename newpath")
+        sth.assert_min_call_count(rename_calls, 1, "rename")
+
+        call = rename_calls[0]
+        sth.assert_arg_count(call, 2, "rename")
+        sth.assert_arg_type(call, 0, str, "rename oldpath")
+        sth.assert_arg_type(call, 1, str, "rename newpath")
 
         # Check renameat
         renameat_calls = sth.filter_syscalls(self.syscalls, "renameat")
-        if renameat_calls:
-            call = renameat_calls[0]
-            sth.assert_arg_count(call, 4, "renameat")
-            sth.assert_at_fdcwd(call, 0, "renameat olddirfd")
-            sth.assert_at_fdcwd(call, 2, "renameat newdirfd")
+        sth.assert_min_call_count(renameat_calls, 1, "renameat")
+
+        call = renameat_calls[0]
+        sth.assert_arg_count(call, 4, "renameat")
+        sth.assert_at_fdcwd(call, 0, "renameat olddirfd")
+        sth.assert_at_fdcwd(call, 2, "renameat newdirfd")
 
     def test_unlinkat_with_flags(self) -> None:
         """Test unlinkat() with AT_FDCWD and flags."""

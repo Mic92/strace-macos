@@ -55,40 +55,38 @@ class TestFdSyscalls(unittest.TestCase):
         # Test readv: should decode iovec structures
         # Expected output: readv(3, [{iov_base="...", iov_len=16}, ...], 3)
         readv_calls = sth.filter_syscalls(self.syscalls, "readv")
-        if readv_calls:
-            sth.assert_iovec_structure(readv_calls[0], 1, "readv")
+        sth.assert_min_call_count(readv_calls, 1, "readv")
+        sth.assert_iovec_structure(readv_calls[0], 1, "readv")
 
         # Test writev: should decode iovec structures
         # Expected output: writev(3, [{iov_base="First ", iov_len=6}, ...], 3)
         writev_calls = sth.filter_syscalls(self.syscalls, "writev")
-        if writev_calls:
-            iovecs = sth.assert_iovec_structure(writev_calls[0], 1, "writev", min_count=3)
-            # Should decode buffer content
-            assert iovecs[0]["iov_base"] == "First ", (
-                f"iovec buffer should be 'First ', got {iovecs[0]['iov_base']!r}"
-            )
-            assert iovecs[0]["iov_len"] == 6, (
-                f"iovec length should be 6, got {iovecs[0]['iov_len']}"
-            )
+        sth.assert_min_call_count(writev_calls, 1, "writev")
+        iovecs = sth.assert_iovec_structure(writev_calls[0], 1, "writev", min_count=3)
+        # Should decode buffer content
+        assert iovecs[0]["iov_base"] == "First ", (
+            f"iovec buffer should be 'First ', got {iovecs[0]['iov_base']!r}"
+        )
+        assert iovecs[0]["iov_len"] == 6, f"iovec length should be 6, got {iovecs[0]['iov_len']}"
 
         # Test pwrite: should show offset parameter
         # Expected output: pwrite(3, "TEST", 4, 6)
         pwrite_calls = sth.filter_syscalls(self.syscalls, "pwrite")
-        if pwrite_calls:
-            pwrite_call = pwrite_calls[0]
-            buf_arg = pwrite_call["args"][1]
-            assert '"' in buf_arg, f"pwrite buffer should be decoded as string, got {buf_arg}"
-            assert "TEST" in buf_arg, f"pwrite buffer should contain 'TEST', got {buf_arg}"
-            offset_arg = pwrite_call["args"][3]
-            assert offset_arg == 6, f"pwrite offset should be 6, got {offset_arg}"
+        sth.assert_min_call_count(pwrite_calls, 1, "pwrite")
+        pwrite_call = pwrite_calls[0]
+        buf_arg = pwrite_call["args"][1]
+        assert '"' in buf_arg, f"pwrite buffer should be decoded as string, got {buf_arg}"
+        assert "TEST" in buf_arg, f"pwrite buffer should contain 'TEST', got {buf_arg}"
+        offset_arg = pwrite_call["args"][3]
+        assert offset_arg == 6, f"pwrite offset should be 6, got {offset_arg}"
 
         # Test pread: should show offset parameter
         # Expected output: pread(3, buf, 4, 0)
         pread_calls = sth.filter_syscalls(self.syscalls, "pread")
-        if pread_calls:
-            pread_call = pread_calls[0]
-            offset_arg = pread_call["args"][3]
-            assert offset_arg == 0, f"pread offset should be 0, got {offset_arg}"
+        sth.assert_min_call_count(pread_calls, 1, "pread")
+        pread_call = pread_calls[0]
+        offset_arg = pread_call["args"][3]
+        assert offset_arg == 0, f"pread offset should be 0, got {offset_arg}"
 
         # Test dup: should return new fd
         # Expected output: dup(3) = 4
@@ -100,10 +98,10 @@ class TestFdSyscalls(unittest.TestCase):
         # Test dup2: should show both old and new fd
         # Expected output: dup2(3, 100) = 100
         dup2_calls = sth.filter_syscalls(self.syscalls, "dup2")
-        if dup2_calls:
-            sth.assert_arg_count(dup2_calls[0], 2, "dup2")
-            new_fd = dup2_calls[0]["args"][1]
-            assert new_fd == 100, f"dup2 new fd should be 100, got {new_fd}"
+        sth.assert_min_call_count(dup2_calls, 1, "dup2")
+        sth.assert_arg_count(dup2_calls[0], 2, "dup2")
+        new_fd = dup2_calls[0]["args"][1]
+        assert new_fd == 100, f"dup2 new fd should be 100, got {new_fd}"
 
         # Test fcntl: should decode commands and arguments properly
         fcntl_calls = sth.filter_syscalls(self.syscalls, "fcntl")
