@@ -9,69 +9,77 @@ from strace_macos.syscalls import numbers
 from strace_macos.syscalls.definitions import (
     ConstParam,
     IntParam,
+    ParamDirection,
     PointerParam,
     SyscallDef,
 )
+from strace_macos.syscalls.struct_params import SigactionParam, SigsetParam, StackParam
 from strace_macos.syscalls.symbols.process import SIG_HOW
 from strace_macos.syscalls.symbols.signal import SIGNAL_NUMBERS
 
-# All signal handling syscalls (13 total) with full argument definitions
+# Signal handling syscalls (8 with public wrappers)
 SIGNAL_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_kill,
-        "kill",
+        "kill",  # Use wrapper (has correct args before signal delivery)
         params=[IntParam(), ConstParam(SIGNAL_NUMBERS)],
     ),  # 37
     SyscallDef(
         numbers.SYS_sigaction,
         "sigaction",
-        params=[ConstParam(SIGNAL_NUMBERS), PointerParam(), PointerParam()],
+        params=[
+            ConstParam(SIGNAL_NUMBERS),
+            SigactionParam(ParamDirection.IN),  # new action
+            SigactionParam(ParamDirection.OUT),  # old action
+        ],
     ),  # 46
-    SyscallDef(numbers.SYS_sigpending, "sigpending", params=[PointerParam()]),  # 52
+    SyscallDef(
+        numbers.SYS_sigpending,
+        "sigpending",
+        params=[SigsetParam(ParamDirection.OUT)],
+    ),  # 52
     SyscallDef(
         numbers.SYS_sigaltstack,
         "sigaltstack",
-        params=[PointerParam(), PointerParam()],
+        params=[
+            StackParam(ParamDirection.IN),  # new stack
+            StackParam(ParamDirection.OUT),  # old stack
+        ],
     ),  # 53
-    SyscallDef(numbers.SYS_sigsuspend, "sigsuspend", params=[PointerParam()]),  # 111
     SyscallDef(
-        numbers.SYS_sigreturn,
-        "sigreturn",
-        params=[PointerParam(), IntParam()],
-    ),  # 184
-    SyscallDef(
-        numbers.SYS_sigsuspend_nocancel,
-        "__sigsuspend_nocancel",
-        params=[PointerParam()],
-    ),  # 410
+        numbers.SYS_sigsuspend,
+        "sigsuspend",
+        params=[SigsetParam(ParamDirection.IN)],
+    ),  # 111
     SyscallDef(
         numbers.SYS___pthread_kill,
-        "__pthread_kill",
+        "pthread_kill",
         params=[PointerParam(), ConstParam(SIGNAL_NUMBERS)],
-    ),  # 328
+    ),  # 328 (public wrapper calls __pthread_kill syscall)
     SyscallDef(
         numbers.SYS___pthread_sigmask,
-        "__pthread_sigmask",
-        params=[ConstParam(SIG_HOW), PointerParam(), PointerParam()],
-    ),  # 329
+        "pthread_sigmask",
+        params=[
+            ConstParam(SIG_HOW),
+            SigsetParam(ParamDirection.IN),  # new mask
+            SigsetParam(ParamDirection.OUT),  # old mask
+        ],
+    ),  # 329 (public wrapper calls __pthread_sigmask syscall)
     SyscallDef(
         numbers.SYS_sigprocmask,
         "sigprocmask",
-        params=[ConstParam(SIG_HOW), PointerParam(), PointerParam()],
-    ),  # 48 (also in process, but primarily signal)
+        params=[
+            ConstParam(SIG_HOW),
+            SigsetParam(ParamDirection.IN),  # new mask
+            SigsetParam(ParamDirection.OUT),  # old mask
+        ],
+    ),  # 48
     SyscallDef(
         numbers.SYS___sigwait,
-        "__sigwait",
-        params=[PointerParam(), PointerParam()],
-    ),  # 330 (also in process, but primarily signal)
-    SyscallDef(
-        numbers.SYS___sigwait_nocancel,
-        "__sigwait_nocancel",
-        params=[PointerParam(), PointerParam()],
-    ),  # 422
-    SyscallDef(
-        numbers.SYS___disable_threadsignal,
-        "__disable_threadsignal",
-        params=[ConstParam(SIGNAL_NUMBERS)],
-    ),  # 331
+        "sigwait",
+        params=[
+            SigsetParam(ParamDirection.IN),  # set of signals to wait for
+            PointerParam(),  # pointer to int that receives signal number
+        ],
+    ),  # 330 (public wrapper calls __sigwait syscall)
 ]
