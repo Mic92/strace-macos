@@ -21,6 +21,7 @@ int mode_file_ops_loop(int argc, char *argv[]);
 int mode_fd_ops(int argc, char *argv[]);
 int mode_file_metadata(int argc, char *argv[]);
 int mode_file_utilities(int argc, char *argv[]);
+int mode_ipc_aio(int argc, char *argv[]);
 int mode_memory(int argc, char *argv[]);
 int mode_network(int argc, char *argv[]);
 int mode_network_loop(int argc, char *argv[]);
@@ -39,6 +40,8 @@ static const test_mode_t modes[] = {
      "File metadata ops (access/chmod/chown/link/symlink/mkdir/rename/unlinkat)"},
     {"--file-utilities", mode_file_utilities,
      "File utilities (flock/fsync/chdir/truncate/utimes/mkfifo/mknod)"},
+    {"--ipc-aio", mode_ipc_aio,
+     "System V IPC and AIO ops (msgget/semget/shmget/aio_cancel/lio_listio)"},
     {"--memory", mode_memory,
      "Memory management ops (mmap/munmap/mprotect/madvise/msync/mlock)"},
     {"--network", mode_network, "Perform basic network operations"},

@@ -9,14 +9,27 @@ from strace_macos.syscalls import numbers
 from strace_macos.syscalls.definitions import (
     ConstParam,
     CustomParam,
+    FileDescriptorParam,
     FlagsParam,
     IntParam,
+    ParamDirection,
     PointerParam,
     SyscallDef,
     UnsignedParam,
 )
+from strace_macos.syscalls.struct_params import (
+    AiocbArrayParam,
+    AiocbParam,
+    MsqidDsParam,
+    SemidDsParam,
+    ShmidDsParam,
+    SigeventParam,
+)
 from strace_macos.syscalls.symbols.ipc import (
     IPC_COMMANDS,
+    LIO_MODES,
+    MSGRCV_FLAGS,
+    SEMCTL_COMMANDS,
     SHM_FLAGS,
     decode_ipc_flags,
 )
@@ -99,7 +112,12 @@ IPC_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_semctl,
         "semctl",
-        params=[IntParam(), IntParam(), ConstParam(IPC_COMMANDS), PointerParam()],
+        params=[
+            IntParam(),
+            IntParam(),
+            ConstParam(SEMCTL_COMMANDS),
+            SemidDsParam(ParamDirection.OUT),
+        ],
         variadic_start=3,  # Fourth argument is variadic
     ),  # 254
     SyscallDef(
@@ -115,7 +133,11 @@ IPC_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_msgctl,
         "msgctl",
-        params=[IntParam(), ConstParam(IPC_COMMANDS), PointerParam()],
+        params=[
+            IntParam(),
+            ConstParam(IPC_COMMANDS),
+            MsqidDsParam(ParamDirection.OUT),
+        ],
     ),  # 258
     SyscallDef(
         numbers.SYS_msgget,
@@ -125,12 +147,23 @@ IPC_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_msgsnd,
         "msgsnd",
-        params=[IntParam(), PointerParam(), UnsignedParam(), IntParam()],
+        params=[
+            IntParam(),
+            PointerParam(),
+            UnsignedParam(),
+            FlagsParam(MSGRCV_FLAGS),
+        ],
     ),  # 260
     SyscallDef(
         numbers.SYS_msgrcv,
         "msgrcv",
-        params=[IntParam(), PointerParam(), UnsignedParam(), IntParam(), IntParam()],
+        params=[
+            IntParam(),
+            PointerParam(),
+            UnsignedParam(),
+            IntParam(),
+            FlagsParam(MSGRCV_FLAGS),
+        ],
     ),  # 261
     SyscallDef(
         numbers.SYS_shmat,
@@ -140,7 +173,11 @@ IPC_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_shmctl,
         "shmctl",
-        params=[IntParam(), ConstParam(IPC_COMMANDS), PointerParam()],
+        params=[
+            IntParam(),
+            ConstParam(IPC_COMMANDS),
+            ShmidDsParam(ParamDirection.OUT),
+        ],
     ),  # 263
     SyscallDef(
         numbers.SYS_shmdt,
@@ -172,27 +209,36 @@ IPC_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_aio_return,
         "aio_return",
-        params=[PointerParam()],
+        params=[AiocbParam(ParamDirection.IN)],
     ),  # 314
     SyscallDef(
         numbers.SYS_aio_suspend,
         "aio_suspend",
-        params=[PointerParam(), IntParam(), PointerParam()],
+        params=[
+            AiocbArrayParam(count_arg_index=1, direction=ParamDirection.IN),
+            IntParam(),
+            PointerParam(),  # struct timespec* timeout
+        ],
     ),  # 315
     SyscallDef(
         numbers.SYS_aio_cancel,
         "aio_cancel",
-        params=[IntParam(), PointerParam()],
+        params=[FileDescriptorParam(), AiocbParam(ParamDirection.IN)],
     ),  # 316
     SyscallDef(
         numbers.SYS_aio_error,
         "aio_error",
-        params=[PointerParam()],
+        params=[AiocbParam(ParamDirection.IN)],
     ),  # 317
     SyscallDef(
         numbers.SYS_lio_listio,
         "lio_listio",
-        params=[IntParam(), PointerParam(), IntParam(), PointerParam()],
+        params=[
+            ConstParam(LIO_MODES),
+            AiocbArrayParam(count_arg_index=2, direction=ParamDirection.IN),
+            IntParam(),
+            SigeventParam(ParamDirection.IN),
+        ],
     ),  # 320
     # kqueue
     SyscallDef(
@@ -355,17 +401,28 @@ IPC_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_msgsnd_nocancel,
         "__msgsnd_nocancel",
-        params=[IntParam(), PointerParam(), UnsignedParam(), IntParam()],
+        params=[
+            IntParam(),
+            PointerParam(),
+            UnsignedParam(),
+            FlagsParam(MSGRCV_FLAGS),
+        ],
     ),  # 418
     SyscallDef(
         numbers.SYS_msgrcv_nocancel,
         "__msgrcv_nocancel",
-        params=[IntParam(), PointerParam(), UnsignedParam(), IntParam(), IntParam()],
+        params=[
+            IntParam(),
+            PointerParam(),
+            UnsignedParam(),
+            IntParam(),
+            FlagsParam(MSGRCV_FLAGS),
+        ],
     ),  # 419
     SyscallDef(
         numbers.SYS_aio_suspend_nocancel,
         "__aio_suspend_nocancel",
-        params=[PointerParam(), IntParam(), PointerParam()],
+        params=[PointerParam(), IntParam(), PointerParam()],  # Array of aiocb*, count, timeout
     ),  # 421
     SyscallDef(
         numbers.SYS_sem_wait_nocancel,

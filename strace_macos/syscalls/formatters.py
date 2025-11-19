@@ -10,11 +10,11 @@ from strace_macos.syscalls.args import (
     FlagsArg,
     IntArg,
     IntPtrArg,
-    IovecArrayArg,
     PointerArg,
     SkipArg,
     StringArg,
     StructArg,
+    StructArrayArg,
     UnsignedArg,
 )
 
@@ -71,8 +71,8 @@ class JSONFormatter:
             return None
         if isinstance(arg, StructArg):
             return {"output": arg.fields}
-        if isinstance(arg, IovecArrayArg):
-            return arg.iov_list
+        if isinstance(arg, StructArrayArg):
+            return arg.struct_list
         if isinstance(arg, IntPtrArg):
             return [arg.value]
         if isinstance(arg, FileDescriptorArg):

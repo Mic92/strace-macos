@@ -201,33 +201,41 @@ class BufferArg(SyscallArg):
         return f'"{formatted}"' if formatted else '""'
 
 
-class IovecArrayArg(SyscallArg):
-    """I/O vector array argument (for readv/writev)."""
+class StructArrayArg(SyscallArg):
+    """Generic struct array argument (for arrays of structures)."""
 
-    def __init__(self, iov_list: list[dict[str, str | int]]) -> None:
-        """Initialize an iovec array argument.
+    def __init__(self, struct_list: list[dict[str, str | int]] | list[str]) -> None:
+        """Initialize a struct array argument.
 
         Args:
-            iov_list: List of iovec dictionaries with 'iov_base' and 'iov_len' keys
+            struct_list: List of struct dictionaries with arbitrary field names,
+                        or list of pre-formatted strings
         """
-        self.iov_list = iov_list
+        self.struct_list = struct_list
 
     def __str__(self) -> str:
-        """Return string representation as [{iov_base="...", iov_len=N}, ...]."""
-        if not self.iov_list:
+        """Return string representation as [{field1=val1, field2=val2}, ...]."""
+        if not self.struct_list:
             return "[]"
 
-        iov_strs = []
-        for iov in self.iov_list:
-            iov_base = iov.get("iov_base", "?")
-            iov_len = iov.get("iov_len", 0)
-            # Format iov_base with quotes if it's a string
-            if isinstance(iov_base, str) and iov_base != "?":
-                iov_strs.append(f'{{iov_base="{iov_base}", iov_len={iov_len}}}')
+        struct_strs = []
+        for item in self.struct_list:
+            if isinstance(item, str):
+                # Pre-formatted string
+                struct_strs.append(item)
+            elif isinstance(item, dict):
+                # Dictionary with fields - format each field
+                field_strs = []
+                for key, value in item.items():
+                    if isinstance(value, str) and value != "?":
+                        field_strs.append(f'{key}="{value}"')
+                    else:
+                        field_strs.append(f"{key}={value}")
+                struct_strs.append("{" + ", ".join(field_strs) + "}")
             else:
-                iov_strs.append(f"{{iov_base={iov_base}, iov_len={iov_len}}}")
+                struct_strs.append(str(item))
 
-        return "[" + ", ".join(iov_strs) + "]"
+        return "[" + ", ".join(struct_strs) + "]"
 
 
 class UnknownArg(SyscallArg):

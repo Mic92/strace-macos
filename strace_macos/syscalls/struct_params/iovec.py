@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Any, ClassVar
 
 from strace_macos.lldb_loader import load_lldb_module
-from strace_macos.syscalls.args import BufferArg, IovecArrayArg, PointerArg
+from strace_macos.syscalls.args import BufferArg, PointerArg, StructArrayArg
 from strace_macos.syscalls.definitions import Param, ParamDirection, SyscallArg
 
 
@@ -47,7 +47,7 @@ class IovecParam(Param):
         *,
         at_entry: bool,
     ) -> SyscallArg | None:
-        """Decode iovec array pointer to IovecArrayArg.
+        """Decode iovec array pointer to StructArrayArg.
 
         Args:
             tracer: The Tracer instance (unused)
@@ -57,7 +57,7 @@ class IovecParam(Param):
             at_entry: True if decoding at syscall entry, False at exit
 
         Returns:
-            IovecArrayArg with decoded buffers, or PointerArg if not ready/failed
+            StructArrayArg with decoded buffers, or PointerArg if not ready/failed
         """
         # Direction filtering
         if at_entry and self.direction != ParamDirection.IN:
@@ -83,7 +83,7 @@ class IovecParam(Param):
         iov_list = self._decode_array(process, raw_value, count)
 
         if iov_list:
-            return IovecArrayArg(iov_list)
+            return StructArrayArg(iov_list)
 
         return PointerArg(raw_value)
 

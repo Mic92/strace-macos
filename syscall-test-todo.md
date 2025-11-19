@@ -379,26 +379,26 @@ Legend:
 - [ ] poll_nocancel
 
 ### System V Message Queues
-- [ ] msgget
-- [ ] msgctl
-- [ ] msgsnd
-- [ ] msgsnd_nocancel
-- [ ] msgrcv
-- [ ] msgrcv_nocancel
-- [ ] msgsys
+- [x] msgget - with IPC_CREAT|IPC_EXCL|mode flags
+- [x] msgctl - with IPC_STAT, IPC_SET, IPC_RMID commands and struct msqid_ds
+- [x] msgsnd - with IPC_NOWAIT|MSG_NOERROR flags
+- [x] msgsnd_nocancel - with flags
+- [x] msgrcv - with IPC_NOWAIT|MSG_NOERROR flags
+- [x] msgrcv_nocancel - with flags
+- [ ] msgsys (legacy multiplexer, basic decoding only, rarely used)
 
 ### System V Semaphores
-- [ ] semget
-- [ ] semctl
-- [ ] semop
-- [ ] semsys
+- [x] semget - with IPC_CREAT|IPC_EXCL|mode flags
+- [x] semctl - with GETNCNT, GETPID, GETVAL, GETALL, GETZCNT, SETVAL, SETALL, IPC_STAT, IPC_SET, IPC_RMID commands and struct semid_ds
+- [x] semop - with SEM_UNDO flag and struct sembuf array
+- [ ] semsys (legacy multiplexer, basic decoding only, rarely used)
 
 ### System V Shared Memory
-- [ ] shmget
-- [ ] shmat
-- [ ] shmctl
-- [ ] shmdt
-- [ ] shmsys
+- [x] shmget - with IPC_CREAT|IPC_EXCL|mode flags
+- [x] shmat - with SHM_RDONLY, SHM_RND flags
+- [x] shmctl - with IPC_STAT, IPC_SET, IPC_RMID commands and struct shmid_ds
+- [x] shmdt
+- [ ] shmsys (legacy multiplexer, basic decoding only, rarely used)
 
 ### Psynch (pthread synchronization primitives)
 - [ ] psynch_mutexwait
@@ -416,12 +416,12 @@ Legend:
 - [ ] psynch_rw_yieldwrlock
 
 ### AIO (Asynchronous I/O)
-- [ ] aio_cancel
-- [ ] aio_error
-- [ ] aio_return
-- [ ] aio_suspend
-- [ ] aio_suspend_nocancel
-- [ ] lio_listio
+- [x] aio_cancel - with file descriptor and struct aiocb decoding
+- [x] aio_error - with struct aiocb decoding
+- [x] aio_return - with struct aiocb decoding
+- [x] aio_suspend - with aiocb pointer array decoding showing fd, nbytes, offset, opcode
+- [x] aio_suspend_nocancel - with aiocb pointer array
+- [x] lio_listio - with LIO_WAIT/LIO_NOWAIT modes, aiocb array decoding, and struct sigevent
 
 ### Miscellaneous
 - [ ] peeloff
