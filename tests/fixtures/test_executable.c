@@ -12,6 +12,7 @@
 #include "mode_misc.h"
 #include "mode_network.h"
 #include "mode_process_identity.h"
+#include "mode_process_advanced.h"
 #include "modes.h"
 #include <string.h>
 

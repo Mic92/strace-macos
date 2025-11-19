@@ -172,25 +172,22 @@ class TestSymbolicDecoding(StraceTestCase):
         if not stat_calls:
             self.skipTest("No successful stat calls found in output")
 
-        # Check that at least one stat call has output data with decoded st_mode
-        # The output is in args (the pointer argument is replaced with decoded struct)
+        # Check that at least one stat call has decoded st_mode in struct
         found_decoded_output = False
         for sc in stat_calls:
-            # Check if any arg is a dict with "output" key containing the struct data
-            for arg in sc["args"]:
-                if isinstance(arg, dict) and "output" in arg:
-                    output_data = arg["output"]
-                    if isinstance(output_data, dict) and "st_mode" in output_data:
-                        st_mode = output_data["st_mode"]
-                        # Should be decoded like "S_IFREG|0644" not just a number
-                        if isinstance(st_mode, str) and ("S_IF" in st_mode or "|0" in st_mode):
-                            found_decoded_output = True
-                            break
+            # stat/fstat have struct stat as second argument (or first for fstat)
+            for _i, arg in enumerate(sc["args"]):
+                if isinstance(arg, dict) and "st_mode" in arg:
+                    st_mode = arg["st_mode"]
+                    # Should be decoded like "S_IFREG|0644" not just a number
+                    if isinstance(st_mode, str) and ("S_IF" in st_mode or "|0" in st_mode):
+                        found_decoded_output = True
+                        break
             if found_decoded_output:
                 break
 
         assert found_decoded_output, (
-            f"stat syscalls should include decoded output with st_mode. Found: {stat_calls}"
+            f"stat syscalls should include decoded st_mode. Found: {stat_calls}"
         )
 
 

@@ -175,10 +175,7 @@ class TestFdSyscalls(unittest.TestCase):
         sth.assert_arg_type(tiocgeta_calls[0], 2, dict, "ioctl TIOCGETA data")
         # Check for struct termios output - termios fields are directly in the dict
         data_arg = tiocgeta_calls[0]["args"][2]
-        assert "output" in data_arg, f"TIOCGETA should have output, got {data_arg}"
-        assert isinstance(data_arg["output"], dict), (
-            f"TIOCGETA output should be dict, got {type(data_arg['output'])}"
-        )
+        assert isinstance(data_arg, dict), f"TIOCGETA output should be dict, got {type(data_arg)}"
 
 
 if __name__ == "__main__":

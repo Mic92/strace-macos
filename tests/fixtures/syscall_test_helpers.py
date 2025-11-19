@@ -289,8 +289,8 @@ def assert_struct_field(
     assert isinstance(arg, dict), (
         f"{syscall_name} arg[{arg_index}] should be decoded struct, got {type(arg)}"
     )
-    assert "output" in arg, f"{syscall_name} should have 'output' key, got {arg}"
-    fields: dict[str, Any] = arg["output"]
+    # Struct fields are directly in the dict (no wrapper)
+    fields: dict[str, Any] = arg
     assert field_name in fields, f"{syscall_name} should show {field_name} field, got {fields}"
     return fields
 

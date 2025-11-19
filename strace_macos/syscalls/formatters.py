@@ -58,7 +58,7 @@ class JSONFormatter:
     @staticmethod
     def _format_arg_for_json(  # noqa: PLR0911
         arg: SyscallArg,
-    ) -> dict[str, dict[str, str | int | list]] | list | str | int | None:
+    ) -> dict[str, str | int | list] | list | str | int | None:
         """Format a single argument for JSON output.
 
         Args:
@@ -70,7 +70,7 @@ class JSONFormatter:
         if isinstance(arg, SkipArg):
             return None
         if isinstance(arg, StructArg):
-            return {"output": arg.fields}
+            return arg.fields
         if isinstance(arg, StructArrayArg):
             return arg.struct_list
         if isinstance(arg, IntPtrArg):
@@ -100,7 +100,7 @@ class JSONFormatter:
             JSON string (no trailing newline)
         """
         # Format args: preserve types for JSON, filter out SkipArg
-        formatted_args: list[dict[str, dict[str, str | int | list]] | list | str | int] = []
+        formatted_args: list[dict[str, str | int | list] | list | str | int] = []
         for arg in event.args:
             formatted_arg = JSONFormatter._format_arg_for_json(arg)
             if formatted_arg is not None:

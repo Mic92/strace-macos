@@ -26,6 +26,7 @@ int mode_memory(int argc, char *argv[]);
 int mode_network(int argc, char *argv[]);
 int mode_network_loop(int argc, char *argv[]);
 int mode_process_identity(int argc, char *argv[]);
+int mode_process_advanced(int argc, char *argv[]);
 int mode_long_running(int argc, char *argv[]);
 int mode_fail(int argc, char *argv[]);
 int mode_default(int argc, char *argv[]);
@@ -51,6 +52,8 @@ static const test_mode_t modes[] = {
      "Loop network operations for attach testing"},
     {"--process-identity", mode_process_identity,
      "Process identity ops (getpid/getuid/getgid/setpgid/setsid/getgroups)"},
+    {"--process-advanced", mode_process_advanced,
+     "Advanced process ops (proc_info/getrlimit/setrlimit/getrusage/getpriority/thread_selfid)"},
     {"--long-running", mode_long_running,
      "Long-running process for attach testing"},
     {"--fail", mode_fail, "Exit with non-zero status"},

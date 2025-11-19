@@ -81,12 +81,23 @@ class Param(ABC):
 
     @staticmethod
     def _to_signed_int(reg_value: int) -> int:
-        """Convert unsigned register value to signed int."""
+        """Convert unsigned 64-bit register value to signed int."""
         return (
             int(reg_value)
             if reg_value < 0x8000000000000000
             else int(reg_value) - 0x10000000000000000
         )
+
+    @staticmethod
+    def _to_signed_int32(reg_value: int) -> int:
+        """Convert unsigned 32-bit value to signed int.
+
+        Handles values like 0xFFFFFFFF (-1 as unsigned 32-bit).
+        """
+        # Mask to 32 bits
+        val32 = reg_value & 0xFFFFFFFF
+        # Convert to signed
+        return val32 if val32 < 0x80000000 else val32 - 0x100000000
 
     @staticmethod
     def _read_string(process: Any, address: int, max_length: int = 4096) -> str:
@@ -301,8 +312,13 @@ def FlagsParam(flag_map: dict[int, str]) -> Param:  # noqa: N802
     return _FlagsParam()
 
 
-def ConstParam(const_map: dict[int, str]) -> Param:  # noqa: N802
-    """Factory function to create a Param for decoding constant values."""
+def ConstParam(const_map: dict[int, str], *, bits: int = 64) -> Param:  # noqa: N802
+    """Factory function to create a Param for decoding constant values.
+
+    Args:
+        const_map: Dictionary mapping integer values to symbolic names
+        bits: Size of the parameter in bits (32 or 64). Defaults to 64.
+    """
 
     class _ConstParam(Param):
         def decode(
@@ -315,11 +331,15 @@ def ConstParam(const_map: dict[int, str]) -> Param:  # noqa: N802
             at_entry: bool,  # noqa: ARG002
         ) -> SyscallArg:
             """Decode constant to IntArg with symbolic representation."""
-            if tracer.no_abbrev:
+            # Convert to signed based on bit width
+            if bits == 32:
+                signed_val = self._to_signed_int32(raw_value)
+            else:
                 signed_val = self._to_signed_int(raw_value)
+
+            if tracer.no_abbrev:
                 return IntArg(signed_val, None)
 
-            signed_val = self._to_signed_int(raw_value)
             symbolic = const_map.get(signed_val)
             return IntArg(signed_val, symbolic)
 
