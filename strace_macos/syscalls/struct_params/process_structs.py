@@ -7,6 +7,9 @@ from typing import ClassVar
 
 from strace_macos.syscalls.definitions import ParamDirection, StructParamBase
 
+# RLIM_INFINITY from sys/resource.h: (((__uint64_t)1 << 63) - 1)
+RLIM_INFINITY = (1 << 63) - 1  # 0x7fffffffffffffff
+
 
 class RlimitStruct(ctypes.Structure):
     """ctypes definition for struct rlimit on macOS.
@@ -46,8 +49,7 @@ class RlimitParam(StructParamBase):
 
     def _decode_rlim(self, value: int, *, no_abbrev: bool) -> str:  # noqa: ARG002
         """Decode resource limit value, showing RLIM_INFINITY as symbolic constant."""
-        rlim_infinity = (1 << 63) - 1
-        if value == rlim_infinity:
+        if value == RLIM_INFINITY:
             return "RLIM_INFINITY"
         return str(value)
 
