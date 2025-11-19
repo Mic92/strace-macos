@@ -14,9 +14,12 @@ from strace_macos.syscalls.definitions import (
     IntParam,
     ParamDirection,
     PointerParam,
-    StructParam,
     SyscallDef,
     UnsignedParam,
+)
+from strace_macos.syscalls.struct_params import (
+    MsghdrParam,
+    SockaddrParam,
 )
 from strace_macos.syscalls.symbols.network import (
     AF_CONSTANTS,
@@ -35,7 +38,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
         "recvmsg",
         params=[
             FileDescriptorParam(),
-            StructParam("msghdr", ParamDirection.IN),
+            MsghdrParam(ParamDirection.IN),
             FlagsParam(MSG_FLAGS),
         ],
     ),  # 27
@@ -44,7 +47,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
         "sendmsg",
         params=[
             FileDescriptorParam(),
-            StructParam("msghdr", ParamDirection.IN),
+            MsghdrParam(ParamDirection.IN),
             FlagsParam(MSG_FLAGS),
         ],
     ),  # 28
@@ -65,7 +68,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
         "accept",
         params=[
             FileDescriptorParam(),
-            StructParam("sockaddr", ParamDirection.OUT),
+            SockaddrParam(ParamDirection.OUT),
             PointerParam(),
         ],
     ),  # 30
@@ -74,7 +77,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
         "getpeername",
         params=[
             FileDescriptorParam(),
-            StructParam("sockaddr", ParamDirection.OUT),
+            SockaddrParam(ParamDirection.OUT),
             PointerParam(),
         ],
     ),  # 31
@@ -83,7 +86,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
         "getsockname",
         params=[
             FileDescriptorParam(),
-            StructParam("sockaddr", ParamDirection.OUT),
+            SockaddrParam(ParamDirection.OUT),
             PointerParam(),
         ],
     ),  # 32
@@ -101,7 +104,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
         "connect",
         params=[
             FileDescriptorParam(),
-            StructParam("sockaddr", ParamDirection.IN),
+            SockaddrParam(ParamDirection.IN),
             UnsignedParam(),
         ],
     ),  # 98
@@ -110,7 +113,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
         "bind",
         params=[
             FileDescriptorParam(),
-            StructParam("sockaddr", ParamDirection.IN),
+            SockaddrParam(ParamDirection.IN),
             UnsignedParam(),
         ],
     ),  # 104
@@ -169,7 +172,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
         "__recvmsg_nocancel",
         params=[
             FileDescriptorParam(),
-            StructParam("msghdr", ParamDirection.IN),
+            MsghdrParam(ParamDirection.IN),
             FlagsParam(MSG_FLAGS),
         ],
     ),  # 401
@@ -178,7 +181,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
         "__sendmsg_nocancel",
         params=[
             FileDescriptorParam(),
-            StructParam("msghdr", ParamDirection.IN),
+            MsghdrParam(ParamDirection.IN),
             FlagsParam(MSG_FLAGS),
         ],
     ),  # 402
@@ -199,7 +202,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
         "__accept_nocancel",
         params=[
             FileDescriptorParam(),
-            StructParam("sockaddr", ParamDirection.OUT),
+            SockaddrParam(ParamDirection.OUT),
             PointerParam(),
         ],
     ),  # 404
@@ -208,7 +211,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
         "__connect_nocancel",
         params=[
             FileDescriptorParam(),
-            StructParam("sockaddr", ParamDirection.IN),
+            SockaddrParam(ParamDirection.IN),
             UnsignedParam(),
         ],
     ),  # 409

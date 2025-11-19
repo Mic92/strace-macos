@@ -1,6 +1,7 @@
-"""Decoder for struct stat on macOS.
+"""Struct stat parameter decoder.
 
-From /usr/include/sys/_types/_stat.h and /usr/include/sys/stat.h
+This module contains the StatParam class for decoding syscall arguments that
+point to struct stat (file statistics).
 """
 
 from __future__ import annotations
@@ -8,7 +9,7 @@ from __future__ import annotations
 import ctypes
 from typing import ClassVar
 
-from strace_macos.syscalls.struct_decoders import StructDecoder
+from strace_macos.syscalls.definitions import ParamDirection, StructParamBase
 from strace_macos.syscalls.symbols.file import S_FILE_TYPES
 
 
@@ -49,11 +50,15 @@ class StatStruct(ctypes.Structure):
     ]
 
 
-class StatDecoder(StructDecoder):
-    """Decoder for struct stat on macOS.
+class StatParam(StructParamBase):
+    """Parameter decoder for struct stat on macOS.
 
-    Uses ctypes for clean struct layout definition.
+    Decodes file statistics including mode, size, timestamps, etc.
     Provides symbolic decoding for st_mode field.
+
+    Usage:
+        StatParam(ParamDirection.OUT)  # For stat, fstat, lstat
+        StatParam(ParamDirection.OUT)  # Also for stat64 (same layout on modern macOS)
     """
 
     struct_type = StatStruct
@@ -76,6 +81,10 @@ class StatDecoder(StructDecoder):
         "st_mode": "_decode_mode",
     }
 
+    def __init__(self, direction: ParamDirection) -> None:
+        """Initialize StatParam with direction."""
+        self.direction = direction
+
     def _decode_mode(self, mode: int, *, no_abbrev: bool) -> str:
         """Decode st_mode into symbolic file type and permissions.
 
@@ -97,3 +106,8 @@ class StatDecoder(StructDecoder):
         perms = mode & 0o7777
 
         return f"{file_type_str}|0{perms:o}"
+
+
+__all__ = [
+    "StatParam",
+]

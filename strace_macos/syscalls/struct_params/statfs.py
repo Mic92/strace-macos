@@ -1,11 +1,11 @@
-"""Decoder for struct statfs (filesystem statistics structure)."""
+"""Struct parameter decoder for statfs (filesystem statistics structure)."""
 
 from __future__ import annotations
 
 import ctypes
 from typing import ClassVar
 
-from strace_macos.syscalls.struct_decoders import StructDecoder
+from strace_macos.syscalls.definitions import ParamDirection, StructParamBase
 
 
 class StatfsStruct(ctypes.Structure):
@@ -55,39 +55,80 @@ class StatfsStruct(ctypes.Structure):
     ]
 
 
-class StatfsDecoder(StructDecoder):
-    """Decoder for struct statfs on macOS.
+class StatfsParam(StructParamBase):
+    """Parameter decoder for struct statfs on macOS.
 
-    Decodes the filesystem statistics structure returned by statfs/fstatfs syscalls.
+    Decodes filesystem statistics including block counts, mount paths, and filesystem type.
+    Provides UTF-8 decoding for string fields.
+
+    Usage:
+        StatfsParam(ParamDirection.OUT)  # For statfs, fstatfs, getfsstat
+        StatfsParam(ParamDirection.OUT)  # Also for statfs64 (same layout on modern macOS)
     """
 
     struct_type = StatfsStruct
 
+    # Exclude internal/reserved fields and fsid (not human readable)
+    excluded_fields: ClassVar[set[str]] = {"f_reserved", "f_flags_ext", "f_fsid"}
+
+    # Custom formatters for byte string fields
+    # Maps field_name -> method_name
     field_formatters: ClassVar[dict[str, str]] = {
         "f_fstypename": "_decode_fstypename",
         "f_mntonname": "_decode_mntonname",
         "f_mntfromname": "_decode_mntfromname",
     }
 
-    excluded_fields: ClassVar[set[str]] = {"f_reserved", "f_flags_ext", "f_fsid"}
+    def __init__(self, direction: ParamDirection) -> None:
+        """Initialize StatfsParam with direction."""
+        self.direction = direction
 
     def _decode_fstypename(self, value: bytes, *, no_abbrev: bool) -> str:  # noqa: ARG002
-        """Decode filesystem type name."""
+        """Decode filesystem type name from null-terminated byte string.
+
+        Args:
+            value: Raw bytes from f_fstypename field
+            no_abbrev: Unused for this formatter
+
+        Returns:
+            UTF-8 decoded string with null bytes stripped, or repr on error
+        """
         try:
             return value.decode("utf-8").rstrip("\x00")
         except UnicodeDecodeError:
             return repr(value)
 
     def _decode_mntonname(self, value: bytes, *, no_abbrev: bool) -> str:  # noqa: ARG002
-        """Decode mount point path."""
+        """Decode mount point path from null-terminated byte string.
+
+        Args:
+            value: Raw bytes from f_mntonname field
+            no_abbrev: Unused for this formatter
+
+        Returns:
+            UTF-8 decoded string with null bytes stripped, or repr on error
+        """
         try:
             return value.decode("utf-8").rstrip("\x00")
         except UnicodeDecodeError:
             return repr(value)
 
     def _decode_mntfromname(self, value: bytes, *, no_abbrev: bool) -> str:  # noqa: ARG002
-        """Decode mounted filesystem name."""
+        """Decode mounted filesystem name from null-terminated byte string.
+
+        Args:
+            value: Raw bytes from f_mntfromname field
+            no_abbrev: Unused for this formatter
+
+        Returns:
+            UTF-8 decoded string with null bytes stripped, or repr on error
+        """
         try:
             return value.decode("utf-8").rstrip("\x00")
         except UnicodeDecodeError:
             return repr(value)
+
+
+__all__ = [
+    "StatfsParam",
+]

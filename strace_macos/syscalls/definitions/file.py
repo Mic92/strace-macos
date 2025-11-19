@@ -15,15 +15,23 @@ from strace_macos.syscalls.definitions import (
     FlagsParam,
     FlockOpParam,
     IntParam,
-    IovecParam,
     OctalParam,
     ParamDirection,
     PointerParam,
     StringParam,
-    StructParam,
     SyscallDef,
     UnsignedParam,
     VariantParam,
+)
+from strace_macos.syscalls.struct_params import (
+    AttrListParam,
+    FssearchblockParam,
+    IntPtrParam,
+    IovecParam,
+    StatfsParam,
+    StatParam,
+    TermiosParam,
+    WinsizeParam,
 )
 from strace_macos.syscalls.symbols import (
     decode_access_mode,
@@ -155,9 +163,9 @@ FILE_SYSCALLS: list[SyscallDef] = [
             VariantParam(
                 discriminator_index=1,  # request argument
                 variants={
-                    0x4004667F: StructParam("int_ptr", ParamDirection.OUT),  # FIONREAD
-                    0x40087468: StructParam("winsize", ParamDirection.OUT),  # TIOCGWINSZ
-                    0x40487413: StructParam("termios", ParamDirection.OUT),  # TIOCGETA
+                    0x4004667F: IntPtrParam(ParamDirection.OUT),  # FIONREAD
+                    0x40087468: WinsizeParam(ParamDirection.OUT),  # TIOCGWINSZ
+                    0x40487413: TermiosParam(ParamDirection.OUT),  # TIOCGETA
                 },
                 skip_for={0x20006601, 0x20006602},  # FIOCLEX, FIONCLEX - no data arg
                 default_param=PointerParam(),  # Unknown requests show as pointer
@@ -301,12 +309,12 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_statfs,
         "statfs",
-        params=[StringParam(), StructParam("statfs", ParamDirection.OUT)],
+        params=[StringParam(), StatfsParam(ParamDirection.OUT)],
     ),  # 157
     SyscallDef(
         numbers.SYS_fstatfs,
         "fstatfs",
-        params=[FileDescriptorParam(), StructParam("statfs", ParamDirection.OUT)],
+        params=[FileDescriptorParam(), StatfsParam(ParamDirection.OUT)],
     ),  # 158
     SyscallDef(
         numbers.SYS_unmount,
@@ -349,17 +357,17 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_stat,
         "stat",
-        params=[StringParam(), StructParam("stat", ParamDirection.OUT)],
+        params=[StringParam(), StatParam(ParamDirection.OUT)],
     ),  # 188
     SyscallDef(
         numbers.SYS_fstat,
         "fstat",
-        params=[FileDescriptorParam(), StructParam("stat", ParamDirection.OUT)],
+        params=[FileDescriptorParam(), StatParam(ParamDirection.OUT)],
     ),  # 189
     SyscallDef(
         numbers.SYS_lstat,
         "lstat",
-        params=[StringParam(), StructParam("stat", ParamDirection.OUT)],
+        params=[StringParam(), StatParam(ParamDirection.OUT)],
     ),  # 190
     SyscallDef(
         numbers.SYS_pathconf,
@@ -431,7 +439,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "getattrlist",
         params=[
             StringParam(),
-            StructParam("attrlist", ParamDirection.IN),
+            AttrListParam(ParamDirection.IN),
             PointerParam(),
             UnsignedParam(),
             FlagsParam(FSOPT_FLAGS),
@@ -442,7 +450,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "setattrlist",
         params=[
             StringParam(),
-            StructParam("attrlist", ParamDirection.IN),
+            AttrListParam(ParamDirection.IN),
             PointerParam(),
             UnsignedParam(),
             FlagsParam(FSOPT_FLAGS),
@@ -472,7 +480,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "searchfs",
         params=[
             StringParam(),  # path
-            StructParam("fssearchblock", ParamDirection.IN),  # searchblock
+            FssearchblockParam(ParamDirection.IN),  # searchblock
             PointerParam(),  # nummatches (unsigned long *)
             FlagsParam(SRCHFS_FLAGS),  # options
             UnsignedParam(),  # timeout
@@ -495,7 +503,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "fgetattrlist",
         params=[
             FileDescriptorParam(),
-            StructParam("attrlist", ParamDirection.IN),
+            AttrListParam(ParamDirection.IN),
             PointerParam(),
             UnsignedParam(),
             FlagsParam(FSOPT_FLAGS),
@@ -506,7 +514,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "fsetattrlist",
         params=[
             FileDescriptorParam(),
-            StructParam("attrlist", ParamDirection.IN),
+            AttrListParam(ParamDirection.IN),
             PointerParam(),
             UnsignedParam(),
             FlagsParam(FSOPT_FLAGS),
@@ -808,7 +816,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         params=[
             DirFdParam(),
             StringParam(),
-            StructParam("stat", ParamDirection.OUT),
+            StatParam(ParamDirection.OUT),
             FlagsParam(AT_FLAGS),
         ],
     ),  # 411
@@ -858,7 +866,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         params=[
             DirFdParam(),
             StringParam(),
-            StructParam("attrlist", ParamDirection.IN),
+            AttrListParam(ParamDirection.IN),
             PointerParam(),
             UnsignedParam(),
             FlagsParam(FSOPT_FLAGS),
@@ -891,7 +899,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         params=[
             DirFdParam(),
             StringParam(),
-            StructParam("stat64", ParamDirection.OUT),
+            StatParam(ParamDirection.OUT),
             FlagsParam(AT_FLAGS),
         ],
     ),  # 423
@@ -940,7 +948,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "getattrlistbulk",
         params=[
             FileDescriptorParam(),
-            StructParam("attrlist", ParamDirection.IN),
+            AttrListParam(ParamDirection.IN),
             PointerParam(),
             UnsignedParam(),
             UnsignedParam(),
@@ -1163,17 +1171,17 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_stat64,
         "stat64",
-        params=[StringParam(), StructParam("stat64", ParamDirection.OUT)],
+        params=[StringParam(), StatParam(ParamDirection.OUT)],
     ),  # 338
     SyscallDef(
         numbers.SYS_fstat64,
         "fstat64",
-        params=[FileDescriptorParam(), StructParam("stat64", ParamDirection.OUT)],
+        params=[FileDescriptorParam(), StatParam(ParamDirection.OUT)],
     ),  # 339
     SyscallDef(
         numbers.SYS_lstat64,
         "lstat64",
-        params=[StringParam(), StructParam("stat64", ParamDirection.OUT)],
+        params=[StringParam(), StatParam(ParamDirection.OUT)],
     ),  # 340
     SyscallDef(
         numbers.SYS_stat64_extended,
@@ -1203,12 +1211,12 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_statfs64,
         "statfs64",
-        params=[StringParam(), StructParam("statfs64", ParamDirection.OUT)],
+        params=[StringParam(), StatfsParam(ParamDirection.OUT)],
     ),  # 345
     SyscallDef(
         numbers.SYS_fstatfs64,
         "fstatfs64",
-        params=[FileDescriptorParam(), StructParam("statfs64", ParamDirection.OUT)],
+        params=[FileDescriptorParam(), StatfsParam(ParamDirection.OUT)],
     ),  # 346
     SyscallDef(
         numbers.SYS_getfsstat64,
@@ -1232,7 +1240,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         params=[
             DirFdParam(),
             StringParam(),
-            StructParam("attrlist", ParamDirection.IN),
+            AttrListParam(ParamDirection.IN),
             PointerParam(),
             UnsignedParam(),
             FlagsParam(FSOPT_FLAGS),

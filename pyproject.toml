@@ -34,6 +34,9 @@ ignore = [
     "T201",    # print statements (used for debugging)
 ]
 
+[tool.ruff.lint.pylint]
+max-returns = 8  # Allow more returns for complex decoders
+
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
     "S101",    # use of assert (standard in tests)
