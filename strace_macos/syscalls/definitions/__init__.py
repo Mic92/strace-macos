@@ -6,16 +6,15 @@ import ctypes
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, ClassVar, Protocol
 
 # Runtime imports (not lldb - that's system Python only)
+from strace_macos.lldb_loader import load_lldb_module
 from strace_macos.syscalls.args import (
     BufferArg,
     FileDescriptorArg,
     FlagsArg,
     IntArg,
-    IntPtrArg,
-    IovecArrayArg,
     PointerArg,
     SkipArg,
     StringArg,
@@ -23,8 +22,6 @@ from strace_macos.syscalls.args import (
     SyscallArg,
     UnsignedArg,
 )
-from strace_macos.syscalls.struct_decoders import get_struct_decoder
-from strace_macos.syscalls.struct_decoders.iovec import IovecArrayDecoder
 from strace_macos.syscalls.symbols.file import AT_FDCWD, FLOCK_OPS
 
 if TYPE_CHECKING:
@@ -94,7 +91,7 @@ class Param(ABC):
     @staticmethod
     def _read_string(process: Any, address: int, max_length: int = 4096) -> str:
         """Read a null-terminated string from process memory."""
-        import lldb  # noqa: PLC0415
+        import lldb  # noqa: PLC0415 - lazy import required for system Python
 
         if address == 0:
             return "NULL"
@@ -381,14 +378,49 @@ class OctalParam(Param):
         return IntArg(signed_val, symbolic)
 
 
-@dataclass
-class StructParam(Param):
-    """Parameter decoder for structured data (e.g., struct stat, struct sockaddr)."""
+class StructParamBase(Param):
+    """Base class for struct-based parameter decoders.
 
-    struct_name: str
+    This combines the functionality of the old StructDecoder and StructParam:
+    - Direction-aware decoding (IN params at entry, OUT params at exit)
+    - ctypes-based struct reading and field iteration
+    - Custom field formatters
+    - Field exclusion
+
+    Subclasses should:
+    1. Set struct_type to their ctypes.Structure class
+    2. Set direction in __init__ (ParamDirection.IN or OUT)
+    3. Optionally define field_formatters dict
+    4. Optionally define excluded_fields set
+    5. Override decode_struct() for custom struct decoding logic
+
+    Example:
+        class StatParam(StructParamBase):
+            struct_type = StatStruct
+            field_formatters = {"st_mode": "_decode_mode"}
+            excluded_fields = {"st_lspare", "_padding"}
+
+            def __init__(self, direction: ParamDirection):
+                self.direction = direction
+
+            def _decode_mode(self, value: int, no_abbrev: bool) -> str:
+                return f"0{value:o}" if no_abbrev else f"S_IFREG|0{value:o}"
+    """
+
+    # Subclasses must set this to their ctypes.Structure class
+    struct_type: type[ctypes.Structure] | None = None
+
+    # Subclasses can define custom formatters for specific fields
+    # Dict maps field_name -> method_name (string)
+    field_formatters: ClassVar[dict[str, str]] = {}
+
+    # Subclasses can exclude fields (e.g., padding, reserved fields)
+    excluded_fields: ClassVar[set[str]] = set()
+
+    # Subclasses must set this in __init__
     direction: ParamDirection
 
-    def decode(  # noqa: PLR0911
+    def decode(
         self,
         tracer: Any,
         process: Any,
@@ -397,7 +429,11 @@ class StructParam(Param):
         *,
         at_entry: bool,
     ) -> SyscallArg | None:
-        """Decode struct pointer to StructArg."""
+        """Decode struct pointer to StructArg.
+
+        This handles direction filtering and delegates to decode_struct()
+        for the actual struct decoding logic.
+        """
         # Direction filtering: only decode at appropriate time
         if at_entry and self.direction != ParamDirection.IN:
             return PointerArg(raw_value)  # Return as pointer for now
@@ -408,22 +444,101 @@ class StructParam(Param):
         if raw_value == 0:
             return PointerArg(0)
 
-        # Get the struct decoder
-        decoder = get_struct_decoder(self.struct_name)
-        if not decoder:
-            return PointerArg(raw_value)
-
-        # Decode the struct from memory
-        decoded_fields = decoder.decode(process, raw_value, no_abbrev=tracer.no_abbrev)
+        # Decode the struct
+        decoded_fields = self.decode_struct(process, raw_value, no_abbrev=tracer.no_abbrev)
         if decoded_fields:
-            # Special case for int_ptr: return IntPtrArg instead of StructArg
-            if self.struct_name == "int_ptr" and "value" in decoded_fields:
-                value = decoded_fields["value"]
-                if isinstance(value, int):
-                    return IntPtrArg(value)
             return StructArg(decoded_fields)
 
         return PointerArg(raw_value)
+
+    def decode_struct(
+        self, process: Any, address: int, *, no_abbrev: bool = False
+    ) -> dict[str, str | int | list[Any]] | None:
+        """Decode a struct from process memory.
+
+        Default implementation uses struct_type and field_formatters.
+        Subclasses can override this for custom decoding logic.
+
+        Args:
+            process: LLDB process to read memory from
+            address: Memory address of the struct
+            no_abbrev: If True, disable symbolic decoding
+
+        Returns:
+            Dictionary of field names to decoded values, or None if read failed
+        """
+        if self.struct_type is None:
+            msg = "Subclasses must define struct_type"
+            raise NotImplementedError(msg)
+
+        # Read memory
+        lldb = load_lldb_module()
+        error = lldb.SBError()
+        size = ctypes.sizeof(self.struct_type)
+        data = process.ReadMemory(address, size, error)
+
+        if error.Fail() or not data:
+            return None
+
+        # Parse struct using ctypes
+        try:
+            struct_obj = self.struct_type.from_buffer_copy(data)
+        except (ValueError, TypeError):
+            return None
+
+        # Build result dict from struct fields
+        result = {}
+        for field_name, _field_type in self.struct_type._fields_:  # type: ignore[misc]
+            # Skip excluded fields
+            if field_name in self.excluded_fields:
+                continue
+
+            raw_value = getattr(struct_obj, field_name)
+
+            # Apply custom formatter if available
+            if field_name in self.field_formatters:
+                method_name = self.field_formatters[field_name]
+                formatter = getattr(self, method_name)
+                formatted_value = formatter(raw_value, no_abbrev=no_abbrev)
+            else:
+                formatted_value = raw_value
+
+            result[field_name] = formatted_value
+
+        return result
+
+    def _read_struct(self, process: Any, address: int, struct_type: type[ctypes.Structure]) -> Any:
+        """Read a ctypes struct from process memory.
+
+        Utility method for subclasses that need to read nested structs.
+
+        Args:
+            process: LLDB process to read memory from
+            address: Memory address of the struct
+            struct_type: The ctypes.Structure subclass to read
+
+        Returns:
+            The struct instance, or None if read failed
+        """
+        lldb = load_lldb_module()
+        error = lldb.SBError()
+        size = ctypes.sizeof(struct_type)
+        data = process.ReadMemory(address, size, error)
+
+        if error.Fail() or not data:
+            return None
+
+        try:
+            return struct_type.from_buffer_copy(data)
+        except (ValueError, TypeError):
+            return None
+
+    @staticmethod
+    def _format_pointer(address: int) -> str:
+        """Format a pointer address for display."""
+        if address == 0:
+            return "NULL"
+        return f"0x{address:x}"
 
 
 @dataclass
@@ -433,7 +548,7 @@ class BufferParam(Param):
     size_arg_index: int
     direction: ParamDirection
 
-    def decode(  # noqa: PLR0911
+    def decode(
         self,
         tracer: Any,
         process: Any,
@@ -443,7 +558,7 @@ class BufferParam(Param):
         at_entry: bool,
     ) -> SyscallArg | None:
         """Decode buffer pointer to BufferArg."""
-        import lldb  # noqa: PLC0415
+        import lldb  # noqa: PLC0415 - lazy import required for system Python
 
         # Direction filtering
         if at_entry and self.direction != ParamDirection.IN:
@@ -479,53 +594,6 @@ class BufferParam(Param):
             return PointerArg(raw_value)
 
         return BufferArg(data, raw_value)
-
-
-@dataclass
-class IovecParam(Param):
-    """Parameter decoder for iovec arrays (for readv/writev)."""
-
-    count_arg_index: int
-    direction: ParamDirection
-
-    def decode(  # noqa: PLR0911
-        self,
-        tracer: Any,  # noqa: ARG002
-        process: Any,
-        raw_value: int,
-        all_args: list[int],
-        *,
-        at_entry: bool,
-    ) -> SyscallArg | None:
-        """Decode iovec array pointer to IovecArrayArg."""
-        # Direction filtering
-        if at_entry and self.direction != ParamDirection.IN:
-            return PointerArg(raw_value)
-        if not at_entry and self.direction != ParamDirection.OUT:
-            return None
-
-        # Skip NULL pointers
-        if raw_value == 0:
-            return PointerArg(0)
-
-        # Get count from referenced argument
-        if self.count_arg_index >= len(all_args):
-            return PointerArg(raw_value)
-
-        count = all_args[self.count_arg_index]
-
-        # Validate count is reasonable
-        if count < 0 or count > 1024:
-            return PointerArg(raw_value)
-
-        # Use the iovec decoder
-        decoder = IovecArrayDecoder()
-        iov_list = decoder.decode_array(process, raw_value, count)
-
-        if iov_list:
-            return IovecArrayArg(iov_list)
-
-        return PointerArg(raw_value)
 
 
 @dataclass

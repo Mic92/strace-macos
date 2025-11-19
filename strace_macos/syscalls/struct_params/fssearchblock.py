@@ -1,11 +1,11 @@
-"""Decoder for struct fssearchblock (filesystem search parameters)."""
+"""Parameter decoder for struct fssearchblock (filesystem search parameters)."""
 
 from __future__ import annotations
 
 import ctypes
 from typing import ClassVar
 
-from strace_macos.syscalls.struct_decoders import StructDecoder
+from strace_macos.syscalls.definitions import ParamDirection, StructParamBase
 
 
 class TimevalStruct(ctypes.Structure):
@@ -62,21 +62,35 @@ class FssearchblockStruct(ctypes.Structure):
     ]
 
 
-class FssearchblockDecoder(StructDecoder):
-    """Decoder for struct fssearchblock on macOS.
+class FssearchblockParam(StructParamBase):
+    """Parameter decoder for struct fssearchblock on macOS.
 
     Decodes the filesystem search parameters structure used by searchfs() syscall.
+
+    Usage:
+        FssearchblockParam(ParamDirection.IN)  # For searchfs input parameter
     """
 
     struct_type = FssearchblockStruct
 
+    # Exclude pointer fields, timelimit (complex nested struct), and searchattrs
     excluded_fields: ClassVar[set[str]] = {
         "searchparams1",
         "searchparams2",
         "searchattrs",
         "returnattrs",
         "returnbuffer",
-        "timelimit",  # Exclude timeval for now - complex nested struct
+        "timelimit",
     }
 
+    # No custom formatters needed
     field_formatters: ClassVar[dict[str, str]] = {}
+
+    def __init__(self, direction: ParamDirection) -> None:
+        """Initialize FssearchblockParam with direction."""
+        self.direction = direction
+
+
+__all__ = [
+    "FssearchblockParam",
+]

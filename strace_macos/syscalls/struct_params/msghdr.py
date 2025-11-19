@@ -1,4 +1,4 @@
-"""Decoder for msghdr structure (used by sendmsg/recvmsg).
+"""MsghdrParam for decoding msghdr structure (used by sendmsg/recvmsg).
 
 Handles:
 - struct msghdr
@@ -8,11 +8,11 @@ Handles:
 from __future__ import annotations
 
 import ctypes
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from strace_macos.lldb_loader import load_lldb_module
 from strace_macos.syscalls.args import BufferArg
-from strace_macos.syscalls.struct_decoders import StructDecoder
+from strace_macos.syscalls.definitions import ParamDirection, StructParamBase
 
 if TYPE_CHECKING:
     import lldb
@@ -42,14 +42,25 @@ class Msghdr(ctypes.Structure):
     ]
 
 
-class MsghdrDecoder(StructDecoder):
-    """Decoder for msghdr structure."""
+class MsghdrParam(StructParamBase):
+    """Parameter decoder for msghdr structure.
+
+    This decoder handles nested iovec arrays within the msghdr structure.
+    """
 
     struct_type = Msghdr
 
-    def decode(
-        self, process: lldb.SBProcess, address: int, *, no_abbrev: bool = False
-    ) -> dict[str, str | int | list] | None:
+    def __init__(self, direction: ParamDirection):
+        """Initialize MsghdrParam with direction.
+
+        Args:
+            direction: ParamDirection.IN or ParamDirection.OUT
+        """
+        self.direction = direction
+
+    def decode_struct(
+        self, process: Any, address: int, *, no_abbrev: bool = False
+    ) -> dict[str, str | int | list[Any]] | None:
         """Decode a msghdr structure from process memory.
 
         Args:
@@ -67,7 +78,7 @@ class MsghdrDecoder(StructDecoder):
         if not msghdr:
             return None
 
-        result: dict[str, str | int | list] = {}
+        result: dict[str, str | int | list[Any]] = {}
 
         # Decode msg_name (optional sockaddr)
         msg_name = msghdr.msg_name or 0
@@ -162,3 +173,6 @@ class MsghdrDecoder(StructDecoder):
             return "?"
 
         return BufferArg.format_buffer(buf_data, max_display=32)
+
+
+__all__ = ["MsghdrParam"]

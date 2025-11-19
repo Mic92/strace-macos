@@ -1,11 +1,11 @@
-"""Decoder for struct attrlist (attribute list structure for getattrlist/setattrlist)."""
+"""Parameter decoder for struct attrlist (attribute list structure for getattrlist/setattrlist)."""
 
 from __future__ import annotations
 
 import ctypes
 from typing import ClassVar
 
-from strace_macos.syscalls.struct_decoders import StructDecoder
+from strace_macos.syscalls.definitions import ParamDirection, StructParamBase
 
 # Common attributes (ATTR_CMN_*)
 ATTR_CMN_FLAGS = {
@@ -123,14 +123,20 @@ class AttrListStruct(ctypes.Structure):
     ]
 
 
-class AttrListDecoder(StructDecoder):
-    """Decoder for struct attrlist on macOS.
+class AttrListParam(StructParamBase):
+    """Parameter decoder for struct attrlist on macOS.
 
     Decodes the attribute list structure used by getattrlist/setattrlist syscalls.
+
+    Usage:
+        AttrListParam(ParamDirection.IN)   # For getattrlist/setattrlist input
+        AttrListParam(ParamDirection.OUT)  # For getattrlist output (if applicable)
     """
 
     struct_type = AttrListStruct
 
+    # Custom formatters for specific fields
+    # Maps field_name -> method_name
     field_formatters: ClassVar[dict[str, str]] = {
         "commonattr": "_decode_commonattr",
         "volattr": "_decode_volattr",
@@ -139,7 +145,12 @@ class AttrListDecoder(StructDecoder):
         "forkattr": "_decode_forkattr",
     }
 
+    # Exclude reserved field
     excluded_fields: ClassVar[set[str]] = {"reserved"}
+
+    def __init__(self, direction: ParamDirection) -> None:
+        """Initialize AttrListParam with direction."""
+        self.direction = direction
 
     def _decode_commonattr(self, value: int, *, no_abbrev: bool) -> str:  # noqa: ARG002
         """Decode common attributes."""
@@ -160,3 +171,8 @@ class AttrListDecoder(StructDecoder):
     def _decode_forkattr(self, value: int, *, no_abbrev: bool) -> str:  # noqa: ARG002
         """Decode fork attributes."""
         return f"0x{value:x}" if value else "0"
+
+
+__all__ = [
+    "AttrListParam",
+]

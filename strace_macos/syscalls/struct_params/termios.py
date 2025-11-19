@@ -1,15 +1,12 @@
-"""Decoder for struct termios (terminal attributes)."""
+"""StructParam for struct termios (terminal attributes)."""
 
 from __future__ import annotations
 
 import ctypes
-from typing import TYPE_CHECKING, ClassVar
+from typing import Any, ClassVar
 
 from strace_macos.lldb_loader import load_lldb_module
-from strace_macos.syscalls.struct_decoders import StructDecoder
-
-if TYPE_CHECKING:
-    import lldb
+from strace_macos.syscalls.definitions import ParamDirection, StructParamBase
 
 
 class Termios(ctypes.Structure):
@@ -84,10 +81,22 @@ TERMIOS_LFLAG: dict[int, str] = {
 }
 
 
-class TermiosDecoder(StructDecoder):
-    """Decoder for struct termios."""
+class TermiosParam(StructParamBase):
+    """StructParam for struct termios.
+
+    This param completely overrides decode_struct() to provide custom
+    flag decoding logic for terminal attributes.
+    """
 
     struct_type = Termios
+
+    def __init__(self, direction: ParamDirection) -> None:
+        """Initialize TermiosParam.
+
+        Args:
+            direction: ParamDirection.IN or ParamDirection.OUT
+        """
+        self.direction = direction
 
     @staticmethod
     def _decode_flags_symbolic(term: Termios) -> dict[str, str | int | list]:
@@ -128,10 +137,13 @@ class TermiosDecoder(StructDecoder):
 
         return result if result else {"c_iflag": "0"}
 
-    def decode(
-        self, process: lldb.SBProcess, address: int, *, no_abbrev: bool = False
+    def decode_struct(
+        self, process: Any, address: int, *, no_abbrev: bool = False
     ) -> dict[str, str | int | list] | None:
         """Decode a struct termios from process memory.
+
+        This completely overrides the base class decode_struct() to provide
+        custom flag decoding logic.
 
         Args:
             process: LLDB process to read memory from
@@ -168,3 +180,6 @@ class TermiosDecoder(StructDecoder):
 
             # Decode flags symbolically (abbreviated - just show main flags)
             return self._decode_flags_symbolic(term)
+
+
+__all__ = ["TermiosParam"]

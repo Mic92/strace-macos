@@ -1,4 +1,4 @@
-"""Decoders for socket address structures (struct sockaddr and variants).
+"""Param for socket address structures (struct sockaddr and variants).
 
 Handles:
 - struct sockaddr_un (Unix domain sockets)
@@ -11,13 +11,10 @@ from __future__ import annotations
 
 import ctypes
 import socket
-from typing import TYPE_CHECKING, ClassVar
+from typing import Any, ClassVar
 
-from strace_macos.syscalls.struct_decoders import StructDecoder
+from strace_macos.syscalls.definitions import ParamDirection, StructParamBase
 from strace_macos.syscalls.symbols.network import AF_CONSTANTS
-
-if TYPE_CHECKING:
-    import lldb
 
 
 # Define ctypes structures for different sockaddr types
@@ -65,8 +62,8 @@ class SockaddrIn6(ctypes.Structure):
     ]
 
 
-class SockaddrDecoder(StructDecoder):
-    """Decoder for socket address structures.
+class SockaddrParam(StructParamBase):
+    """Param for socket address structures.
 
     Automatically detects the sockaddr type based on sa_family and
     decodes the appropriate structure variant.
@@ -77,8 +74,12 @@ class SockaddrDecoder(StructDecoder):
 
     excluded_fields: ClassVar[set[str]] = {"sin_zero", "sun_len", "sin_len", "sin6_len"}
 
-    def decode(
-        self, process: lldb.SBProcess, address: int, *, no_abbrev: bool = False
+    def __init__(self, direction: ParamDirection):
+        """Initialize SockaddrParam with direction."""
+        self.direction = direction
+
+    def decode_struct(
+        self, process: Any, address: int, *, no_abbrev: bool = False
     ) -> dict[str, str | int | list] | None:
         """Decode a sockaddr structure from process memory.
 
@@ -109,7 +110,7 @@ class SockaddrDecoder(StructDecoder):
         family_name = AF_CONSTANTS.get(sa_family, str(sa_family))
         return {"sa_family": family_name}
 
-    def _read_family(self, process: lldb.SBProcess, address: int) -> int | None:
+    def _read_family(self, process: Any, address: int) -> int | None:
         """Read the sa_family field from a sockaddr.
 
         Args:
@@ -122,7 +123,7 @@ class SockaddrDecoder(StructDecoder):
         base = self._read_struct(process, address, SockaddrBase)
         return base.sa_family if base else None
 
-    def _decode_unix(self, process: lldb.SBProcess, address: int) -> dict[str, str | int | list]:
+    def _decode_unix(self, process: Any, address: int) -> dict[str, str | int | list]:
         """Decode AF_UNIX sockaddr.
 
         Args:
@@ -153,7 +154,7 @@ class SockaddrDecoder(StructDecoder):
 
         return result
 
-    def _decode_inet(self, process: lldb.SBProcess, address: int) -> dict[str, str | int | list]:
+    def _decode_inet(self, process: Any, address: int) -> dict[str, str | int | list]:
         """Decode AF_INET sockaddr.
 
         Args:
@@ -180,7 +181,7 @@ class SockaddrDecoder(StructDecoder):
 
         return result
 
-    def _decode_inet6(self, process: lldb.SBProcess, address: int) -> dict[str, str | int | list]:
+    def _decode_inet6(self, process: Any, address: int) -> dict[str, str | int | list]:
         """Decode AF_INET6 sockaddr.
 
         Args:
@@ -210,3 +211,6 @@ class SockaddrDecoder(StructDecoder):
             result["sin6_scope_id"] = struct_obj.sin6_scope_id
 
         return result
+
+
+__all__ = ["SockaddrParam"]
