@@ -70,6 +70,20 @@ AIO_CANCEL_RETURN: dict[int, str] = {
     0x4: "AIO_NOTCANCELED",
 }
 
+# poll() event flags
+POLL_EVENTS: dict[int, str] = {
+    0x0001: "POLLIN",
+    0x0002: "POLLPRI",
+    0x0004: "POLLOUT",
+    0x0008: "POLLERR",
+    0x0010: "POLLHUP",
+    0x0020: "POLLNVAL",
+    0x0040: "POLLRDNORM",
+    0x0080: "POLLWRNORM",
+    0x0100: "POLLRDBAND",
+    0x0200: "POLLWRBAND",
+}
+
 
 def decode_ipc_flags(value: int) -> str:
     if value == 0:

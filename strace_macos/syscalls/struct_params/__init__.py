@@ -9,6 +9,14 @@ Each module exports its Param class via __all__.
 from strace_macos.syscalls.struct_params.aiocb import AiocbParam
 from strace_macos.syscalls.struct_params.aiocb_array import AiocbArrayParam
 from strace_macos.syscalls.struct_params.attrlist import AttrListParam
+from strace_macos.syscalls.struct_params.event_structs import (
+    FdSetParam,
+    Kevent64Param,
+    KeventParam,
+    PollfdParam,
+    TimespecParam,
+    TimevalParam,
+)
 from strace_macos.syscalls.struct_params.fssearchblock import FssearchblockParam
 from strace_macos.syscalls.struct_params.int_ptr import IntPtrParam
 from strace_macos.syscalls.struct_params.iovec import IovecParam
@@ -35,11 +43,15 @@ __all__ = [
     "AiocbArrayParam",
     "AiocbParam",
     "AttrListParam",
+    "FdSetParam",
     "FssearchblockParam",
     "IntPtrParam",
     "IovecParam",
+    "Kevent64Param",
+    "KeventParam",
     "MsghdrParam",
     "MsqidDsParam",
+    "PollfdParam",
     "SembufParam",
     "SemidDsParam",
     "ShmidDsParam",
@@ -51,5 +63,7 @@ __all__ = [
     "StatParam",
     "StatfsParam",
     "TermiosParam",
+    "TimespecParam",
+    "TimevalParam",
     "WinsizeParam",
 ]

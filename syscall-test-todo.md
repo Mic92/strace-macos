@@ -362,21 +362,21 @@ Legend:
 ## IPC/Kqueue/Psynch Syscalls (48 total)
 
 ### Kqueue & Event Management
-- [ ] kqueue
-- [ ] guarded_kqueue_np
-- [ ] kevent
-- [ ] kevent64
-- [ ] kevent_id
-- [ ] kevent_qos
-- [ ] kqueue_workloop_ctl
+- [x] kqueue
+- [ ] guarded_kqueue_np (no public prototype - skipped)
+- [x] kevent (with struct kevent array, EVFILT_*, EV_*, NOTE_* flag decoding)
+- [x] kevent64 (with struct kevent64_s array)
+- [ ] kevent_id (no public prototype - skipped)
+- [ ] kevent_qos (no public prototype - skipped)
+- [ ] kqueue_workloop_ctl (no public prototype - skipped)
 
 ### Select & Poll
-- [ ] select
-- [ ] select_nocancel
-- [ ] pselect
-- [ ] pselect_nocancel
-- [ ] poll
-- [ ] poll_nocancel
+- [x] select (with fd_set and struct timeval decoding)
+- [ ] select_nocancel (no public prototype - skipped)
+- [x] pselect (with fd_set and struct timespec decoding)
+- [ ] pselect_nocancel (no public prototype - skipped)
+- [x] poll (with struct pollfd array and POLL* event flag decoding)
+- [ ] poll_nocancel (no public prototype - skipped)
 
 ### System V Message Queues
 - [x] msgget - with IPC_CREAT|IPC_EXCL|mode flags

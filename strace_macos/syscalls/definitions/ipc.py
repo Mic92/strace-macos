@@ -20,10 +20,16 @@ from strace_macos.syscalls.definitions import (
 from strace_macos.syscalls.struct_params import (
     AiocbArrayParam,
     AiocbParam,
+    FdSetParam,
+    Kevent64Param,
+    KeventParam,
     MsqidDsParam,
+    PollfdParam,
     SemidDsParam,
     ShmidDsParam,
     SigeventParam,
+    TimespecParam,
+    TimevalParam,
 )
 from strace_macos.syscalls.symbols.ipc import (
     IPC_COMMANDS,
@@ -41,28 +47,32 @@ IPC_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_select,
         "select",
         params=[
-            IntParam(),
-            PointerParam(),
-            PointerParam(),
-            PointerParam(),
-            PointerParam(),
+            IntParam(),  # nfds
+            FdSetParam(),  # readfds
+            FdSetParam(),  # writefds
+            FdSetParam(),  # exceptfds
+            TimevalParam(),  # timeout
         ],
     ),  # 93
     SyscallDef(
         numbers.SYS_poll,
         "poll",
-        params=[PointerParam(), UnsignedParam(), IntParam()],
+        params=[
+            PollfdParam(count_arg_index=1),  # fds array
+            UnsignedParam(),  # nfds
+            IntParam(),  # timeout in milliseconds
+        ],
     ),  # 230
     SyscallDef(
         numbers.SYS_pselect,
         "pselect",
         params=[
-            IntParam(),
-            PointerParam(),
-            PointerParam(),
-            PointerParam(),
-            PointerParam(),
-            PointerParam(),
+            IntParam(),  # nfds
+            FdSetParam(),  # readfds
+            FdSetParam(),  # writefds
+            FdSetParam(),  # exceptfds
+            TimespecParam(),  # timeout
+            PointerParam(),  # sigmask - TODO: decode sigset_t
         ],
     ),  # 312
     SyscallDef(
@@ -250,25 +260,25 @@ IPC_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_kevent,
         "kevent",
         params=[
-            IntParam(),
-            PointerParam(),
-            IntParam(),
-            PointerParam(),
-            IntParam(),
-            PointerParam(),
+            FileDescriptorParam(),  # kq (kqueue fd)
+            KeventParam(count_arg_index=2, direction=ParamDirection.IN),  # changelist
+            IntParam(),  # nchanges
+            KeventParam(count_arg_index=4, direction=ParamDirection.OUT),  # eventlist
+            IntParam(),  # nevents
+            TimespecParam(),  # timeout
         ],
     ),  # 363
     SyscallDef(
         numbers.SYS_kevent64,
         "kevent64",
         params=[
-            IntParam(),
-            PointerParam(),
-            IntParam(),
-            PointerParam(),
-            IntParam(),
-            UnsignedParam(),
-            PointerParam(),
+            FileDescriptorParam(),  # kq (kqueue fd)
+            Kevent64Param(count_arg_index=2, direction=ParamDirection.IN),  # changelist
+            IntParam(),  # nchanges
+            Kevent64Param(count_arg_index=4, direction=ParamDirection.OUT),  # eventlist
+            IntParam(),  # nevents
+            UnsignedParam(),  # flags
+            TimespecParam(),  # timeout
         ],
     ),  # 369
     SyscallDef(
