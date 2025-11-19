@@ -87,71 +87,71 @@ class TestNetworkSyscalls(unittest.TestCase):
         # Test bind: should decode sockaddr structure
         # Expected output: bind(3, {sa_family=AF_UNIX, sun_path="/tmp/strace_test.12345"}, 106)
         bind_calls = sth.filter_syscalls(self.syscalls, "bind")
-        if bind_calls:
-            addr_fields = sth.assert_struct_field(bind_calls[0], 1, "sa_family", "bind")
-            # For Unix sockets, should show sun_path
-            assert "sun_path" in addr_fields or "AF_UNIX" in str(addr_fields), (
-                f"bind should decode sockaddr, got {addr_fields}"
-            )
+        sth.assert_min_call_count(bind_calls, 1, "bind")
+        addr_fields = sth.assert_struct_field(bind_calls[0], 1, "sa_family", "bind")
+        # For Unix sockets, should show sun_path
+        assert "sun_path" in addr_fields or "AF_UNIX" in str(addr_fields), (
+            f"bind should decode sockaddr, got {addr_fields}"
+        )
 
         # Test sendto: should decode buffer contents and flags
         # Expected output: sendto(3, "test", 4, 0, NULL, 0)
         sendto_calls = sth.filter_syscalls(self.syscalls, "sendto")
-        if sendto_calls:
-            buf_arg = sendto_calls[0]["args"][1]
-            assert '"' in buf_arg, f"sendto buffer should be decoded as string, got {buf_arg}"
-            assert "test" in buf_arg, f"sendto buffer should contain 'test', got {buf_arg}"
+        sth.assert_min_call_count(sendto_calls, 1, "sendto")
+        buf_arg = sendto_calls[0]["args"][1]
+        assert '"' in buf_arg, f"sendto buffer should be decoded as string, got {buf_arg}"
+        assert "test" in buf_arg, f"sendto buffer should contain 'test', got {buf_arg}"
 
-            # Flags should already be decoded with current decode_msg_flags
-            flags_arg = sendto_calls[0]["args"][3]
-            assert flags_arg == "0" or "MSG_" in flags_arg, (
-                f"sendto flags should be decoded, got {flags_arg}"
-            )
+        # Flags should already be decoded with current decode_msg_flags
+        flags_arg = sendto_calls[0]["args"][3]
+        assert flags_arg == "0" or "MSG_" in flags_arg, (
+            f"sendto flags should be decoded, got {flags_arg}"
+        )
 
         # Test recvfrom: should decode buffer contents and flags
         recvfrom_calls = sth.filter_syscalls(self.syscalls, "recvfrom")
-        if recvfrom_calls:
-            flags_arg = recvfrom_calls[0]["args"][3]
-            assert flags_arg == "0" or "MSG_" in flags_arg, (
-                f"recvfrom flags should be decoded, got {flags_arg}"
-            )
+        sth.assert_min_call_count(recvfrom_calls, 1, "recvfrom")
+        flags_arg = recvfrom_calls[0]["args"][3]
+        assert flags_arg == "0" or "MSG_" in flags_arg, (
+            f"recvfrom flags should be decoded, got {flags_arg}"
+        )
 
         # Test sendmsg: should decode msghdr structure
         # Expected output: sendmsg(3, {msg_name=NULL, msg_iov=[...], ...}, 0)
         sendmsg_calls = sth.filter_syscalls(self.syscalls, "sendmsg")
-        if sendmsg_calls:
-            msg_fields = sth.assert_struct_field(sendmsg_calls[0], 1, "msg_iov", "sendmsg")
-            # msg_iov should be a list of iovec dicts
-            assert isinstance(msg_fields["msg_iov"], list), (
-                f"msg_iov should be a list, got {type(msg_fields['msg_iov'])}"
-            )
-            assert len(msg_fields["msg_iov"]) > 0, (
-                f"msg_iov should have elements, got {msg_fields['msg_iov']}"
-            )
-            # Check first iovec
-            iov = msg_fields["msg_iov"][0]
-            assert "iov_base" in iov, f"iovec should have iov_base, got {iov}"
-            assert "iov_len" in iov, f"iovec should have iov_len, got {iov}"
-            # iov_base should be a plain string without quotes (quotes are added by JSON serialization)
-            assert iov["iov_base"] == "msg", (
-                f"iovec buffer should be 'msg' (without quotes), got {iov['iov_base']!r}"
-            )
-            assert iov["iov_len"] == 3, f"iovec length should be 3, got {iov['iov_len']}"
+        sth.assert_min_call_count(sendmsg_calls, 1, "sendmsg")
+        msg_fields = sth.assert_struct_field(sendmsg_calls[0], 1, "msg_iov", "sendmsg")
+        # msg_iov should be a list of iovec dicts
+        assert isinstance(msg_fields["msg_iov"], list), (
+            f"msg_iov should be a list, got {type(msg_fields['msg_iov'])}"
+        )
+        assert len(msg_fields["msg_iov"]) > 0, (
+            f"msg_iov should have elements, got {msg_fields['msg_iov']}"
+        )
+        # Check first iovec
+        iov = msg_fields["msg_iov"][0]
+        assert "iov_base" in iov, f"iovec should have iov_base, got {iov}"
+        assert "iov_len" in iov, f"iovec should have iov_len, got {iov}"
+        # iov_base should be a plain string without quotes (quotes are added by JSON serialization)
+        assert iov["iov_base"] == "msg", (
+            f"iovec buffer should be 'msg' (without quotes), got {iov['iov_base']!r}"
+        )
+        assert iov["iov_len"] == 3, f"iovec length should be 3, got {iov['iov_len']}"
 
         # Test getsockname: should decode sockaddr
         getsockname_calls = sth.filter_syscalls(self.syscalls, "getsockname")
-        if getsockname_calls:
-            sth.assert_struct_field(getsockname_calls[0], 1, "sa_family", "getsockname")
+        sth.assert_min_call_count(getsockname_calls, 1, "getsockname")
+        sth.assert_struct_field(getsockname_calls[0], 1, "sa_family", "getsockname")
 
         # Test getpeername: should decode sockaddr
         getpeername_calls = sth.filter_syscalls(self.syscalls, "getpeername")
-        if getpeername_calls:
-            sth.assert_struct_field(getpeername_calls[0], 1, "sa_family", "getpeername")
+        sth.assert_min_call_count(getpeername_calls, 1, "getpeername")
+        sth.assert_struct_field(getpeername_calls[0], 1, "sa_family", "getpeername")
 
         # Test accept: should decode sockaddr
         accept_calls = sth.filter_syscalls(self.syscalls, "accept")
-        if accept_calls:
-            sth.assert_struct_field(accept_calls[0], 1, "sa_family", "accept")
+        sth.assert_min_call_count(accept_calls, 1, "accept")
+        sth.assert_struct_field(accept_calls[0], 1, "sa_family", "accept")
 
 
 if __name__ == "__main__":

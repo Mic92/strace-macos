@@ -129,22 +129,22 @@ class TestFileUtilitiesSyscalls(unittest.TestCase):
         chroot_calls = sth.filter_syscalls(self.syscalls, "chroot")
 
         # Should have chdir calls
-        if chdir_calls:
-            call = chdir_calls[0]
-            sth.assert_arg_type(call, 0, str, "chdir path")
-            # Path should be valid directory path
-            path = call["args"][0]
-            assert path.startswith("/") or path in [".", ".."], (
-                f"chdir path should be absolute or relative, got {path}"
-            )
+        sth.assert_min_call_count(chdir_calls, 1, "chdir")
+        call = chdir_calls[0]
+        sth.assert_arg_type(call, 0, str, "chdir path")
+        # Path should be valid directory path
+        path = call["args"][0]
+        assert path.startswith("/") or path in [".", ".."], (
+            f"chdir path should be absolute or relative, got {path}"
+        )
 
         # Should have fchdir calls
-        if fchdir_calls:
-            sth.assert_arg_type(fchdir_calls[0], 0, int, "fchdir fd")
+        sth.assert_min_call_count(fchdir_calls, 1, "fchdir")
+        sth.assert_arg_type(fchdir_calls[0], 0, int, "fchdir fd")
 
         # chroot likely failed but should have been called
-        if chroot_calls:
-            sth.assert_arg_type(chroot_calls[0], 0, str, "chroot path")
+        sth.assert_min_call_count(chroot_calls, 1, "chroot")
+        sth.assert_arg_type(chroot_calls[0], 0, str, "chroot path")
 
     def test_truncate_operations(self) -> None:
         """Test truncate() and ftruncate() syscalls."""
@@ -191,40 +191,40 @@ class TestFileUtilitiesSyscalls(unittest.TestCase):
         mknodat_calls = sth.filter_syscalls(self.syscalls, "mknodat")
 
         # Should have mkfifo
-        if mkfifo_calls:
-            call = mkfifo_calls[0]
-            sth.assert_arg_count(call, 2, "mkfifo")
-            sth.assert_arg_type(call, 0, str, "mkfifo path")
-            sth.assert_octal_mode(call, 1, "mkfifo")
+        sth.assert_min_call_count(mkfifo_calls, 1, "mkfifo")
+        call = mkfifo_calls[0]
+        sth.assert_arg_count(call, 2, "mkfifo")
+        sth.assert_arg_type(call, 0, str, "mkfifo path")
+        sth.assert_octal_mode(call, 1, "mkfifo")
 
         # Should have mkfifoat
-        if mkfifoat_calls:
-            call = mkfifoat_calls[0]
-            sth.assert_arg_count(call, 3, "mkfifoat")
-            # First arg should be AT_FDCWD or fd
-            sth.assert_arg_type(call, 1, str, "mkfifoat path")
-            sth.assert_octal_mode(call, 2, "mkfifoat")
+        sth.assert_min_call_count(mkfifoat_calls, 1, "mkfifoat")
+        call = mkfifoat_calls[0]
+        sth.assert_arg_count(call, 3, "mkfifoat")
+        # First arg should be AT_FDCWD or fd
+        sth.assert_arg_type(call, 1, str, "mkfifoat path")
+        sth.assert_octal_mode(call, 2, "mkfifoat")
 
         # Should have mknod (may fail without root)
-        if mknod_calls:
-            call = mknod_calls[0]
-            sth.assert_arg_count(call, 3, "mknod")
-            sth.assert_arg_type(call, 0, str, "mknod path")
-            sth.assert_octal_mode(call, 1, "mknod")
-            sth.assert_arg_type(call, 2, int, "mknod dev")
+        sth.assert_min_call_count(mknod_calls, 1, "mknod")
+        call = mknod_calls[0]
+        sth.assert_arg_count(call, 3, "mknod")
+        sth.assert_arg_type(call, 0, str, "mknod path")
+        sth.assert_octal_mode(call, 1, "mknod")
+        sth.assert_arg_type(call, 2, int, "mknod dev")
 
         # Should have mknodat (may fail without root)
-        if mknodat_calls:
-            sth.assert_arg_count(mknodat_calls[0], 4, "mknodat")
+        sth.assert_min_call_count(mknodat_calls, 1, "mknodat")
+        sth.assert_arg_count(mknodat_calls[0], 4, "mknodat")
 
     def test_getattrlistat(self) -> None:
         """Test getattrlistat() syscall."""
         getattrlistat_calls = sth.filter_syscalls(self.syscalls, "getattrlistat")
 
         # May or may not succeed, but should be called
-        if getattrlistat_calls:
-            # Expects: dirfd, path, attrlist, attrbuf, size, options
-            sth.assert_arg_count(getattrlistat_calls[0], 6, "getattrlistat")
+        sth.assert_min_call_count(getattrlistat_calls, 1, "getattrlistat")
+        # Expects: dirfd, path, attrlist, attrbuf, size, options
+        sth.assert_arg_count(getattrlistat_calls[0], 6, "getattrlistat")
 
     def test_clone_operations(self) -> None:
         """Test clonefileat() and fclonefileat() syscalls with CLONE flags."""
@@ -233,31 +233,29 @@ class TestFileUtilitiesSyscalls(unittest.TestCase):
 
         # These may fail if not on APFS or files don't exist, but should be invoked
         # We test multiple calls with different flags
-        if clonefileat_calls:
-            sth.assert_min_call_count(clonefileat_calls, 2, "clonefileat")
+        sth.assert_min_call_count(clonefileat_calls, 2, "clonefileat")
 
-            # Expects: src_dirfd, src_name, dst_dirfd, dst_name, flags
-            for call in clonefileat_calls:
-                sth.assert_arg_count(call, 5, "clonefileat")
+        # Expects: src_dirfd, src_name, dst_dirfd, dst_name, flags
+        for call in clonefileat_calls:
+            sth.assert_arg_count(call, 5, "clonefileat")
 
-            flags_seen = sth.collect_flags_from_calls(clonefileat_calls, 4)
-            # Should have tested different CLONE flags
-            assert len(flags_seen) >= 2, (
-                f"Should have multiple different CLONE flags, got: {flags_seen}"
-            )
+        flags_seen = sth.collect_flags_from_calls(clonefileat_calls, 4)
+        # Should have tested different CLONE flags
+        assert len(flags_seen) >= 2, (
+            f"Should have multiple different CLONE flags, got: {flags_seen}"
+        )
 
-        if fclonefileat_calls:
-            sth.assert_min_call_count(fclonefileat_calls, 2, "fclonefileat")
+        sth.assert_min_call_count(fclonefileat_calls, 2, "fclonefileat")
 
-            # Expects: srcfd, dst_dirfd, dst_name, flags
-            for call in fclonefileat_calls:
-                sth.assert_arg_count(call, 4, "fclonefileat")
+        # Expects: srcfd, dst_dirfd, dst_name, flags
+        for call in fclonefileat_calls:
+            sth.assert_arg_count(call, 4, "fclonefileat")
 
-            flags_seen = sth.collect_flags_from_calls(fclonefileat_calls, 3)
-            # Should have tested CLONE_NOFOLLOW
-            assert any("CLONE_NOFOLLOW" in f or "0x1" in f or "0x0001" in f for f in flags_seen), (
-                f"Should have CLONE_NOFOLLOW flag, got flags: {flags_seen}"
-            )
+        flags_seen = sth.collect_flags_from_calls(fclonefileat_calls, 3)
+        # Should have tested CLONE_NOFOLLOW
+        assert any("CLONE_NOFOLLOW" in f or "0x1" in f or "0x0001" in f for f in flags_seen), (
+            f"Should have CLONE_NOFOLLOW flag, got flags: {flags_seen}"
+        )
 
     def test_attribute_syscalls(self) -> None:
         """Test getattrlist/setattrlist family of syscalls."""
@@ -269,50 +267,49 @@ class TestFileUtilitiesSyscalls(unittest.TestCase):
         fchownat_calls = sth.filter_syscalls(self.syscalls, "fchownat")
 
         # Should have getattrlist
-        if getattrlist_calls:
-            call = getattrlist_calls[0]
-            # Expects: path, attrlist, attrbuf, size, options
-            sth.assert_arg_count(call, 5, "getattrlist")
-            # Check attrlist struct is decoded
-            fields = sth.assert_struct_field(call, 1, "commonattr", "getattrlist")
-            # Should see ATTR_CMN_NAME or ATTR_CMN_OBJTYPE
-            commonattr = str(fields["commonattr"])
-            assert "ATTR_CMN" in commonattr, (
-                f"commonattr should be decoded symbolically, got {commonattr}"
-            )
+        sth.assert_min_call_count(getattrlist_calls, 1, "getattrlist")
+        call = getattrlist_calls[0]
+        # Expects: path, attrlist, attrbuf, size, options
+        sth.assert_arg_count(call, 5, "getattrlist")
+        # Check attrlist struct is decoded
+        fields = sth.assert_struct_field(call, 1, "commonattr", "getattrlist")
+        # Should see ATTR_CMN_NAME or ATTR_CMN_OBJTYPE
+        commonattr = str(fields["commonattr"])
+        assert "ATTR_CMN" in commonattr, (
+            f"commonattr should be decoded symbolically, got {commonattr}"
+        )
 
         # Should have fgetattrlist
-        if fgetattrlist_calls:
-            # Expects: fd, attrlist, attrbuf, size, options
-            sth.assert_arg_count(fgetattrlist_calls[0], 5, "fgetattrlist")
+        sth.assert_min_call_count(fgetattrlist_calls, 1, "fgetattrlist")
+        # Expects: fd, attrlist, attrbuf, size, options
+        sth.assert_arg_count(fgetattrlist_calls[0], 5, "fgetattrlist")
 
         # Should have setattrlist
-        if setattrlist_calls:
-            # Expects: path, attrlist, attrbuf, size, options
-            sth.assert_arg_count(setattrlist_calls[0], 5, "setattrlist")
+        sth.assert_min_call_count(setattrlist_calls, 1, "setattrlist")
+        # Expects: path, attrlist, attrbuf, size, options
+        sth.assert_arg_count(setattrlist_calls[0], 5, "setattrlist")
 
         # Should have fsetattrlist
-        if fsetattrlist_calls:
-            # Expects: fd, attrlist, attrbuf, size, options
-            sth.assert_arg_count(fsetattrlist_calls[0], 5, "fsetattrlist")
+        sth.assert_min_call_count(fsetattrlist_calls, 1, "fsetattrlist")
+        # Expects: fd, attrlist, attrbuf, size, options
+        sth.assert_arg_count(fsetattrlist_calls[0], 5, "fsetattrlist")
 
         # Should have getattrlistbulk
-        if getattrlistbulk_calls:
-            # Expects: dirfd, attrlist, attrbuf, size, options
-            sth.assert_arg_count(getattrlistbulk_calls[0], 5, "getattrlistbulk")
+        sth.assert_min_call_count(getattrlistbulk_calls, 1, "getattrlistbulk")
+        # Expects: dirfd, attrlist, attrbuf, size, options
+        sth.assert_arg_count(getattrlistbulk_calls[0], 5, "getattrlistbulk")
 
         # Should have fchownat with flags
         sth.assert_min_call_count(fchownat_calls, 2, "fchownat")
-        if fchownat_calls:
-            # Expects: dirfd, path, uid, gid, flags
-            for call in fchownat_calls:
-                sth.assert_arg_count(call, 5, "fchownat")
+        # Expects: dirfd, path, uid, gid, flags
+        for call in fchownat_calls:
+            sth.assert_arg_count(call, 5, "fchownat")
 
-            flags_seen = sth.collect_flags_from_calls(fchownat_calls, 4)
-            # Should have tested AT_SYMLINK_NOFOLLOW
-            assert any(
-                "AT_SYMLINK_NOFOLLOW" in f or "0x20" in f or "0x0020" in f for f in flags_seen
-            ), f"Should have AT_SYMLINK_NOFOLLOW flag, got flags: {flags_seen}"
+        flags_seen = sth.collect_flags_from_calls(fchownat_calls, 4)
+        # Should have tested AT_SYMLINK_NOFOLLOW
+        assert any(
+            "AT_SYMLINK_NOFOLLOW" in f or "0x20" in f or "0x0020" in f for f in flags_seen
+        ), f"Should have AT_SYMLINK_NOFOLLOW flag, got flags: {flags_seen}"
 
     def test_statfs_operations(self) -> None:
         """Test statfs family syscalls decode properly."""
@@ -341,17 +338,16 @@ class TestFileUtilitiesSyscalls(unittest.TestCase):
 
         # Should have getxattr with different flags
         sth.assert_min_call_count(getxattr_calls, 2, "getxattr")
-        if getxattr_calls:
-            # Expects: path, name, value, size, position, options
-            for call in getxattr_calls:
-                sth.assert_arg_count(call, 6, "getxattr")
+        # Expects: path, name, value, size, position, options
+        for call in getxattr_calls:
+            sth.assert_arg_count(call, 6, "getxattr")
 
-            # Check for XATTR_NOFOLLOW flag
-            flags_seen = sth.collect_flags_from_calls(getxattr_calls, 5)
-            # At least one should have XATTR_NOFOLLOW
-            assert any("XATTR_NOFOLLOW" in f for f in flags_seen), (
-                f"Should have XATTR_NOFOLLOW flag, got flags: {flags_seen}"
-            )
+        # Check for XATTR_NOFOLLOW flag
+        flags_seen = sth.collect_flags_from_calls(getxattr_calls, 5)
+        # At least one should have XATTR_NOFOLLOW
+        assert any("XATTR_NOFOLLOW" in f for f in flags_seen), (
+            f"Should have XATTR_NOFOLLOW flag, got flags: {flags_seen}"
+        )
 
         # Should have various xattr syscalls
         sth.assert_min_call_count(fgetxattr_calls, 1, "fgetxattr")
@@ -376,24 +372,22 @@ class TestFileUtilitiesSyscalls(unittest.TestCase):
 
         # Should have copyfile with different flags
         sth.assert_min_call_count(copyfile_calls, 2, "copyfile")
-        if copyfile_calls:
-            # Expects: src, dst, state, flags
-            for call in copyfile_calls:
-                sth.assert_arg_count(call, 4, "copyfile")
+        # Expects: src, dst, state, flags
+        for call in copyfile_calls:
+            sth.assert_arg_count(call, 4, "copyfile")
 
-            # Check for different flags (COPYFILE_DATA, COPYFILE_XATTR)
-            flags_seen = sth.collect_flags_from_calls(copyfile_calls, 3)
-            # Should have tested different flags
-            assert any("COPYFILE_DATA" in f for f in flags_seen) or any(
-                "COPYFILE_XATTR" in f for f in flags_seen
-            ), f"Should have COPYFILE_DATA or COPYFILE_XATTR flag, got flags: {flags_seen}"
+        # Check for different flags (COPYFILE_DATA, COPYFILE_XATTR)
+        flags_seen = sth.collect_flags_from_calls(copyfile_calls, 3)
+        # Should have tested different flags
+        assert any("COPYFILE_DATA" in f for f in flags_seen) or any(
+            "COPYFILE_XATTR" in f for f in flags_seen
+        ), f"Should have COPYFILE_DATA or COPYFILE_XATTR flag, got flags: {flags_seen}"
 
         # Should have searchfs with SRCHFS_MATCHFILES flag
         sth.assert_min_call_count(searchfs_calls, 1, "searchfs")
-        if searchfs_calls:
-            # Expects: path, searchblock, nummatches, options, timeout, searchstate
-            for call in searchfs_calls:
-                sth.assert_arg_count(call, 6, "searchfs")
+        # Expects: path, searchblock, nummatches, options, timeout, searchstate
+        for call in searchfs_calls:
+            sth.assert_arg_count(call, 6, "searchfs")
 
     def test_exchangedata_undelete_revoke(self) -> None:
         """Test exchangedata, undelete, and revoke syscalls."""
@@ -413,16 +407,13 @@ class TestFileUtilitiesSyscalls(unittest.TestCase):
 
         # getfh should be called at least once
         sth.assert_min_call_count(getfh_calls, 1, "getfh")
+        # Expects: path, fhp
+        call = getfh_calls[0]
+        sth.assert_arg_count(call, 2, "getfh")
+        sth.assert_arg_type(call, 0, str, "getfh path")
+        # Second arg is a pointer to file handle buffer
 
-        if getfh_calls:
-            # Expects: path, fhp
-            call = getfh_calls[0]
-            sth.assert_arg_count(call, 2, "getfh")
-            sth.assert_arg_type(call, 0, str, "getfh path")
-            # Second arg is a pointer to file handle buffer
-
-        # fhopen may or may not succeed (likely fails for security reasons)
-        # but should be attempted if getfh succeeded
+        # fhopen is called if getfh succeeded (may fail for security reasons)
         if fhopen_calls:
             # Expects: fhp, flags
             call = fhopen_calls[0]
