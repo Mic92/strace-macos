@@ -32,6 +32,9 @@
 #include <sys/xattr.h>
 #include <unistd.h>
 
+/* Forward declaration for fdatasync - exists as syscall but not in headers */
+int fdatasync(int fd);
+
 int mode_file_utilities(int argc, char *argv[]) {
   (void)argc; /* Unused parameter */
   (void)argv; /* Unused parameter */

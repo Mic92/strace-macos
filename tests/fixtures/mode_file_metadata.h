@@ -39,11 +39,17 @@ int mode_file_metadata(int argc, char *argv[]) {
   char unlinkat_dir[256];
 
   /* Test access() with various modes */
-  access("/tmp", F_OK);        /* Check existence */
-  access("/tmp", R_OK);        /* Check read permission */
-  access("/tmp", W_OK);        /* Check write permission */
-  access("/tmp", X_OK);        /* Check execute permission */
-  access("/tmp", R_OK | W_OK); /* Check read+write */
+  int access_result;
+  access_result = access("/tmp", F_OK); /* Check existence */
+  (void)access_result;
+  access_result = access("/tmp", R_OK); /* Check read permission */
+  (void)access_result;
+  access_result = access("/tmp", W_OK); /* Check write permission */
+  (void)access_result;
+  access_result = access("/tmp", X_OK); /* Check execute permission */
+  (void)access_result;
+  access_result = access("/tmp", R_OK | W_OK); /* Check read+write */
+  (void)access_result;
 
   /* Create test files using mkstemp for safe temp file creation */
 
@@ -98,7 +104,8 @@ int mode_file_metadata(int argc, char *argv[]) {
   strcpy(symlink1, temp_template);
 
   symlink("/tmp/target", symlink1);
-  readlink(symlink1, buf, sizeof(buf));
+  ssize_t readlink_result = readlink(symlink1, buf, sizeof(buf));
+  (void)readlink_result;
 
   /* Test symlinkat() and readlinkat() */
   strcpy(temp_template, "/tmp/test_symlink2_XXXXXX");

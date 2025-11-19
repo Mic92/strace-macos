@@ -40,7 +40,9 @@ static void *client_thread(void *arg) {
   int client_sock = socket(AF_UNIX, SOCK_STREAM, 0);
   if (client_sock >= 0) {
     /* connect - connect to server */
-    connect(client_sock, (struct sockaddr *)&sync->addr, sizeof(sync->addr));
+    int connect_result = connect(client_sock, (struct sockaddr *)&sync->addr,
+                                 sizeof(sync->addr));
+    (void)connect_result;
     close(client_sock);
   }
 
@@ -99,7 +101,8 @@ int mode_network(int argc, char *argv[]) {
     iov.iov_len = sizeof(buf);
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
-    recvmsg(sv[1], &msg, 0);
+    ssize_t recvmsg_result = recvmsg(sv[1], &msg, 0);
+    (void)recvmsg_result;
 
     /* 10. shutdown - shutdown one direction */
     shutdown(sv[0], SHUT_WR);
@@ -166,7 +169,9 @@ int mode_network(int argc, char *argv[]) {
     inet_addr.sin_port = 0; /* Let kernel choose port */
 
     /* Additional bind test with INET */
-    bind(inet_sock, (struct sockaddr *)&inet_addr, sizeof(inet_addr));
+    int bind_result =
+        bind(inet_sock, (struct sockaddr *)&inet_addr, sizeof(inet_addr));
+    (void)bind_result;
 
     /* Test disconnectx if we want (macOS specific) - will likely fail but
      * exercises the syscall */

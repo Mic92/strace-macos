@@ -21,6 +21,11 @@
 #include <sys/shm.h>
 #include <unistd.h>
 
+/* shmat() returns this value on failure */
+/* NOLINTBEGIN(performance-no-int-to-ptr) */
+#define SHMAT_FAILED ((void *)-1)
+/* NOLINTEND(performance-no-int-to-ptr) */
+
 int mode_ipc_aio(int argc, char *argv[]) {
   (void)argc; /* Unused parameter */
   (void)argv; /* Unused parameter */
@@ -143,7 +148,7 @@ int mode_ipc_aio(int argc, char *argv[]) {
 
       /* shmat - attach with default address (read/write) */
       shmaddr = shmat(shmid, NULL, 0);
-      if (shmaddr != (void *)-1) {
+      if (shmaddr != SHMAT_FAILED) {
         /* Write some test data */
         memcpy(shmaddr, "test_data_123", 13);
 
@@ -158,14 +163,14 @@ int mode_ipc_aio(int argc, char *argv[]) {
 
       /* shmat - attach read-only */
       shmaddr = shmat(shmid, NULL, SHM_RDONLY);
-      if (shmaddr != (void *)-1) {
+      if (shmaddr != SHMAT_FAILED) {
         /* Can read but not write */
         shmdt(shmaddr);
       }
 
       /* shmat - attach with SHM_RND (round address) */
       shmaddr = shmat(shmid, NULL, SHM_RND);
-      if (shmaddr != (void *)-1) {
+      if (shmaddr != SHMAT_FAILED) {
         shmdt(shmaddr);
       }
 

@@ -215,18 +215,18 @@ int mode_process_identity(int argc, char *argv[]) {
     snprintf(username, sizeof(username), "%s", pwd->pw_name);
 
     /* Test initgroups() with current username and primary gid */
-    if (initgroups(username, gid) < 0) {
+    if (initgroups(username, (int)gid) < 0) {
       /* Expected to fail if not root, but we test the syscall */
     }
 
     /* Test initgroups() with different gid */
-    if (initgroups(username, egid) < 0) {
+    if (initgroups(username, (int)egid) < 0) {
       /* Expected to fail if not root */
     }
   }
 
   /* Test with a non-existent username (should fail) */
-  if (initgroups("nonexistent_user_12345", gid) < 0) {
+  if (initgroups("nonexistent_user_12345", (int)gid) < 0) {
     /* Expected to fail */
   }
 
