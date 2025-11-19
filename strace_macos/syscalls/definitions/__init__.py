@@ -312,12 +312,13 @@ def FlagsParam(flag_map: dict[int, str]) -> Param:  # noqa: N802
     return _FlagsParam()
 
 
-def ConstParam(const_map: dict[int, str], *, bits: int = 64) -> Param:  # noqa: N802
+def ConstParam(const_map: dict[int, str]) -> Param:  # noqa: N802
     """Factory function to create a Param for decoding constant values.
+
+    Constant parameters are always 32-bit int in syscalls (e.g., flags, commands).
 
     Args:
         const_map: Dictionary mapping integer values to symbolic names
-        bits: Size of the parameter in bits (32 or 64). Defaults to 64.
     """
 
     class _ConstParam(Param):
@@ -331,11 +332,8 @@ def ConstParam(const_map: dict[int, str], *, bits: int = 64) -> Param:  # noqa: 
             at_entry: bool,  # noqa: ARG002
         ) -> SyscallArg:
             """Decode constant to IntArg with symbolic representation."""
-            # Convert to signed based on bit width
-            if bits == 32:
-                signed_val = self._to_signed_int32(raw_value)
-            else:
-                signed_val = self._to_signed_int(raw_value)
+            # All constant parameters are 32-bit int
+            signed_val = self._to_signed_int32(raw_value)
 
             if tracer.no_abbrev:
                 return IntArg(signed_val, None)

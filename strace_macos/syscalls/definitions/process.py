@@ -89,7 +89,7 @@ PROCESS_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_getrusage,
         "getrusage",
         params=[
-            ConstParam(RUSAGE_WHO, bits=32),  # who (int = 32-bit)
+            ConstParam(RUSAGE_WHO),  # who (int = 32-bit)
             RusageParam(ParamDirection.OUT),  # rusage (struct rusage output)
         ],
     ),  # 117
