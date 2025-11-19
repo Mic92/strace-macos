@@ -9,7 +9,7 @@
  *        statfs, fstatfs, getfsstat,
  *        getxattr, fgetxattr, setxattr, fsetxattr, fremovexattr,
  *        fsctl, ffsctl, fsgetpath, copyfile, searchfs, exchangedata,
- *        undelete, revoke
+ *        undelete, revoke, getfh, fhopen, chflags, fchflags
  */
 
 #ifndef MODE_FILE_UTILITIES_H
@@ -26,13 +26,14 @@
 #include <sys/file.h>
 #include <sys/fsgetpath.h>
 #include <sys/mount.h>
+#include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/xattr.h>
 #include <unistd.h>
 
-/* Forward declaration for fdatasync - exists as syscall but not in headers */
+/* Forward declarations for syscalls that exist but not in all headers */
 int fdatasync(int fd);
 
 int mode_file_utilities(int argc, char *argv[]) {
@@ -430,6 +431,34 @@ int mode_file_utilities(int argc, char *argv[]) {
 
   /* Test revoke() - revoke file access */
   revoke(test_file1);
+
+  /* === FILE HANDLE SYSCALLS === */
+
+  /* Test getfh() - get file handle */
+  /* File handles use fhandle_t type on macOS */
+  {
+    fhandle_t fh;
+    if (getfh(test_file2, &fh) == 0) {
+      /* Test fhopen() - open file from handle */
+      /* This will likely fail for security reasons, but tests the syscall */
+      fhopen(&fh, O_RDONLY);
+    }
+  }
+
+  /* === FILE FLAGS SYSCALLS === */
+
+  /* Test chflags() - change file flags */
+  /* UF_IMMUTABLE = 0x2, UF_APPEND = 0x4, UF_NODUMP = 0x1 */
+  chflags(test_file2, 0);         /* Clear all flags */
+  chflags(test_file2, UF_NODUMP); /* Set no-dump flag */
+  chflags(test_file2, 0);         /* Clear again */
+
+  /* Test fchflags() - change file flags via fd */
+  if (fd2 >= 0) {
+    fchflags(fd2, 0);         /* Clear all flags */
+    fchflags(fd2, UF_NODUMP); /* Set no-dump flag */
+    fchflags(fd2, 0);         /* Clear again */
+  }
 
   /* === CLEANUP === */
 
