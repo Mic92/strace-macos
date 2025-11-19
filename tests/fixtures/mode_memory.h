@@ -15,10 +15,13 @@
 #include <unistd.h>
 
 int mode_memory(int argc, char *argv[]) {
+  (void)argc; /* Unused parameter */
+  (void)argv; /* Unused parameter */
   void *addr;
   size_t page_size = getpagesize();
   size_t map_size = page_size * 4;  /* 4 pages */
   int fd = -1;
+  (void)fd; /* Unused but may be needed for future mmap file tests */
 
   /* Test mmap with anonymous memory, different protection flags */
 

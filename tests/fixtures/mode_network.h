@@ -53,7 +53,6 @@ int mode_network(int argc, char *argv[]) {
 
   int sv[2];
   char buf[128];
-  struct sockaddr_un addr;
   struct sockaddr_storage peer_addr;
   socklen_t addr_len;
   int opt = 1;

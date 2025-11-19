@@ -16,6 +16,8 @@
 #include <unistd.h>
 
 int mode_file_metadata(int argc, char *argv[]) {
+  (void)argc; /* Unused parameter */
+  (void)argv; /* Unused parameter */
   char buf[256];
   int fd;
   char temp_template[256];

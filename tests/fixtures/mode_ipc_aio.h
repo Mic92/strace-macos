@@ -22,6 +22,8 @@
 #include <unistd.h>
 
 int mode_ipc_aio(int argc, char *argv[]) {
+  (void)argc; /* Unused parameter */
+  (void)argv; /* Unused parameter */
   int result = 0;
 
   /* System V Message Queues */
@@ -83,7 +85,7 @@ int mode_ipc_aio(int argc, char *argv[]) {
 
       /* semctl - GETVAL (read back the value) */
       int val = semctl(semid, 0, GETVAL, arg);
-      /* val should be 5 */
+      (void)val; /* Suppress unused warning - val should be 5 */
 
       /* semctl - GETPID (get PID of last operation) */
       semctl(semid, 0, GETPID, arg);
