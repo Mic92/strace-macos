@@ -64,6 +64,25 @@ int mode_fd_ops(int argc, char *argv[]) {
   iov_read[2].iov_len = sizeof(buf3);
   readv(fd, iov_read, 3);
 
+  /* 5a. preadv - read from specific offset into multiple buffers */
+  char pbuf1[8], pbuf2[8];
+  struct iovec iov_pread[2];
+  iov_pread[0].iov_base = pbuf1;
+  iov_pread[0].iov_len = sizeof(pbuf1);
+  iov_pread[1].iov_base = pbuf2;
+  iov_pread[1].iov_len = sizeof(pbuf2);
+  preadv(fd, iov_pread, 2, 0);
+
+  /* 5b. pwritev - write to specific offset from multiple buffers */
+  const char *pmsg1 = "OVER";
+  const char *pmsg2 = "LAP";
+  struct iovec iov_pwrite[2];
+  iov_pwrite[0].iov_base = (void *)pmsg1;
+  iov_pwrite[0].iov_len = strlen(pmsg1);
+  iov_pwrite[1].iov_base = (void *)pmsg2;
+  iov_pwrite[1].iov_len = strlen(pmsg2);
+  pwritev(fd, iov_pwrite, 2, 12);
+
   /* 6. dup - duplicate file descriptor */
   int fd2 = dup(fd);
   if (fd2 >= 0) {

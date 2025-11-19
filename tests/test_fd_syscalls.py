@@ -41,6 +41,8 @@ class TestFdSyscalls(unittest.TestCase):
             "pread",
             "readv",
             "writev",
+            "preadv",
+            "pwritev",
             "dup",
             "dup2",
             "fcntl",
@@ -48,9 +50,9 @@ class TestFdSyscalls(unittest.TestCase):
             "lseek",
         }
 
-        # We should capture at least 9 out of 11 expected syscalls
+        # We should capture at least 11 out of 13 expected syscalls
         # (some like mkstemp might be implemented as open internally)
-        sth.assert_syscall_coverage(self.syscalls, expected_syscalls, 9, "fd syscalls")
+        sth.assert_syscall_coverage(self.syscalls, expected_syscalls, 11, "fd syscalls")
 
         # Test readv: should decode iovec structures
         # Expected output: readv(3, [{iov_base="...", iov_len=16}, ...], 3)
@@ -68,6 +70,46 @@ class TestFdSyscalls(unittest.TestCase):
             f"iovec buffer should be 'First ', got {iovecs[0]['iov_base']!r}"
         )
         assert iovecs[0]["iov_len"] == 6, f"iovec length should be 6, got {iovecs[0]['iov_len']}"
+
+        # Test preadv: should decode iovec structures AND show offset parameter
+        # Expected output: preadv(3, [{iov_base=..., iov_len=8}, {iov_base=..., iov_len=8}], 2, 0)
+        preadv_calls = sth.filter_syscalls(self.syscalls, "preadv")
+        sth.assert_min_call_count(preadv_calls, 1, "preadv")
+        sth.assert_arg_count(preadv_calls[0], 4, "preadv")
+        iovecs = sth.assert_iovec_structure(preadv_calls[0], 1, "preadv", min_count=2)
+        # Check iovec structure
+        assert iovecs[0]["iov_len"] == 8, (
+            f"preadv iovec[0] length should be 8, got {iovecs[0]['iov_len']}"
+        )
+        assert iovecs[1]["iov_len"] == 8, (
+            f"preadv iovec[1] length should be 8, got {iovecs[1]['iov_len']}"
+        )
+        # Check offset parameter (4th argument, index 3)
+        offset_arg = preadv_calls[0]["args"][3]
+        assert offset_arg == 0, f"preadv offset should be 0, got {offset_arg}"
+
+        # Test pwritev: should decode iovec structures with buffer content AND show offset
+        # Expected output: pwritev(3, [{iov_base="OVER", iov_len=4}, {iov_base="LAP", iov_len=3}], 2, 12)
+        pwritev_calls = sth.filter_syscalls(self.syscalls, "pwritev")
+        sth.assert_min_call_count(pwritev_calls, 1, "pwritev")
+        sth.assert_arg_count(pwritev_calls[0], 4, "pwritev")
+        iovecs = sth.assert_iovec_structure(pwritev_calls[0], 1, "pwritev", min_count=2)
+        # Should decode buffer content for IN direction
+        assert iovecs[0]["iov_base"] == "OVER", (
+            f"pwritev iovec[0] buffer should be 'OVER', got {iovecs[0]['iov_base']!r}"
+        )
+        assert iovecs[0]["iov_len"] == 4, (
+            f"pwritev iovec[0] length should be 4, got {iovecs[0]['iov_len']}"
+        )
+        assert iovecs[1]["iov_base"] == "LAP", (
+            f"pwritev iovec[1] buffer should be 'LAP', got {iovecs[1]['iov_base']!r}"
+        )
+        assert iovecs[1]["iov_len"] == 3, (
+            f"pwritev iovec[1] length should be 3, got {iovecs[1]['iov_len']}"
+        )
+        # Check offset parameter (4th argument, index 3)
+        offset_arg = pwritev_calls[0]["args"][3]
+        assert offset_arg == 12, f"pwritev offset should be 12, got {offset_arg}"
 
         # Test pwrite: should show offset parameter
         # Expected output: pwrite(3, "TEST", 4, 6)
