@@ -49,6 +49,14 @@ MCL_FLAGS: dict[int, str] = {
     0x0002: "MCL_FUTURE",
 }
 
+# minherit inheritance constants (from mach/vm_inherit.h)
+VM_INHERIT_CONSTANTS: dict[int, str] = {
+    0: "VM_INHERIT_SHARE",
+    1: "VM_INHERIT_COPY",
+    2: "VM_INHERIT_NONE",
+    3: "VM_INHERIT_DONATE_COPY",
+}
+
 
 def decode_prot_flags(value: int) -> str:
     if value == 0:

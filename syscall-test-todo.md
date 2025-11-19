@@ -346,16 +346,16 @@ Legend:
 - [x] msync (with MS_* flag decoding)
 - [x] __msync_nocancel
 - [x] madvise (with MADV_* constant decoding)
-- [ ] mincore
-- [ ] minherit
+- [x] mincore
+- [x] minherit (with VM_INHERIT_* constant decoding)
 - [x] mlock
 - [x] munlock
-- [ ] mlockall
-- [ ] munlockall
-- [ ] mremap_encrypted
-- [ ] shared_region_check_np
-- [ ] shared_region_map_and_slide_2_np
-- [ ] vm_pressure_monitor
+- [x] mlockall (with MCL_* flag decoding)
+- [x] munlockall
+- [ ] mremap_encrypted (no public header/linkable symbol)
+- [ ] shared_region_check_np (no public linkable symbol)
+- [ ] shared_region_map_and_slide_2_np (no public header)
+- [ ] vm_pressure_monitor (no public header)
 
 ---
 

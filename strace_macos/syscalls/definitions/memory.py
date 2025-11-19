@@ -20,6 +20,7 @@ from strace_macos.syscalls.symbols.memory import (
     MAP_FLAGS,
     MCL_FLAGS,
     PROT_FLAGS,
+    VM_INHERIT_CONSTANTS,
 )
 
 # All memory management syscalls (16 total) with full argument definitions
@@ -69,7 +70,7 @@ MEMORY_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_minherit,
         "minherit",
-        params=[PointerParam(), UnsignedParam(), IntParam()],
+        params=[PointerParam(), UnsignedParam(), ConstParam(VM_INHERIT_CONSTANTS)],
     ),  # 250
     SyscallDef(
         numbers.SYS_shared_region_check_np,

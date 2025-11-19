@@ -1,11 +1,13 @@
 /*
  * Memory management operations mode
- * Tests: mmap, munmap, mprotect, madvise, msync, mlock, munlock
+ * Tests: mmap, munmap, mprotect, madvise, msync,
+ *        mlock, munlock, mincore, minherit, mlockall, munlockall
  */
 
 #ifndef MODE_MEMORY_H
 #define MODE_MEMORY_H
 
+#include <mach/vm_inherit.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -105,6 +107,36 @@ int mode_memory(int argc, char *argv[]) {
     /* munmap the rest */
     munmap(addr, page_size * 12);
   }
+
+  /* === ADDITIONAL MEMORY MANAGEMENT SYSCALLS === */
+
+  /* Test mincore() - check which pages are in memory */
+  addr = mmap(NULL, page_size * 2, PROT_READ | PROT_WRITE,
+              MAP_PRIVATE | MAP_ANON, -1, 0);
+  if (addr != MAP_FAILED) {
+    char vec[2]; /* One byte per page */
+    mincore(addr, page_size * 2, vec);
+    munmap(addr, page_size * 2);
+  }
+
+  /* Test minherit() - set inheritance of memory region */
+  addr = mmap(NULL, page_size, PROT_READ | PROT_WRITE,
+              MAP_PRIVATE | MAP_ANON, -1, 0);
+  if (addr != MAP_FAILED) {
+    minherit(addr, page_size, VM_INHERIT_SHARE);
+    minherit(addr, page_size, VM_INHERIT_COPY);
+    minherit(addr, page_size, VM_INHERIT_NONE);
+    munmap(addr, page_size);
+  }
+
+  /* Test mlockall() / munlockall() - lock/unlock all pages */
+  /* Note: These may fail without proper permissions */
+  mlockall(MCL_CURRENT);
+  munlockall();
+  mlockall(MCL_FUTURE);
+  munlockall();
+  mlockall(MCL_CURRENT | MCL_FUTURE);
+  munlockall();
 
   return 0;
 }

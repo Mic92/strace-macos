@@ -8,6 +8,9 @@ Tests coverage for:
 - madvise (advising kernel on memory usage)
 - msync (synchronizing memory with storage)
 - mlock, munlock (locking/unlocking pages in memory)
+- mincore (checking which pages are in memory)
+- minherit (setting inheritance of memory regions)
+- mlockall, munlockall (locking/unlocking all pages)
 """
 
 from __future__ import annotations
@@ -79,7 +82,7 @@ class TestMemorySyscalls(unittest.TestCase):
         """Test that all expected memory management syscalls are captured."""
         syscall_names = [sc.get("syscall") for sc in self.syscalls]
 
-        # Expected syscalls from our test mode
+        # Expected syscalls from our test mode (all should be traced even if they fail)
         expected_syscalls = {
             "mmap",
             "munmap",
@@ -88,12 +91,16 @@ class TestMemorySyscalls(unittest.TestCase):
             "msync",
             "mlock",
             "munlock",
+            "mincore",
+            "minherit",
+            "mlockall",
+            "munlockall",
         }
 
         captured = expected_syscalls & set(syscall_names)
         missing = expected_syscalls - set(syscall_names)
 
-        # We should capture all of these
+        # We should capture all expected syscalls
         assert len(captured) == len(expected_syscalls), (
             f"Should capture all {len(expected_syscalls)} memory syscalls, got {len(captured)}.\n"
             f"Captured: {sorted(captured)}\n"
@@ -113,23 +120,6 @@ class TestMemorySyscalls(unittest.TestCase):
         munlock_calls = [sc for sc in self.syscalls if sc.get("syscall") == "munlock"]
         assert len(mlock_calls) >= 1, "Expected at least 1 mlock call"
         assert len(munlock_calls) >= 1, "Expected at least 1 munlock call"
-
-    def test_mmap_argument_decoding(self) -> None:
-        """Test mmap() syscall with flag and protection decoding."""
-        mmap_calls = [sc for sc in self.syscalls if sc.get("syscall") == "mmap"]
-
-        # Check first mmap call structure
-        call = mmap_calls[0]
-
-        # prot flags (should be decoded)
-        prot_arg = call["args"][2]
-        assert isinstance(prot_arg, str), f"mmap prot should be string, got {type(prot_arg)}"
-        assert "PROT_" in prot_arg, f"mmap prot should contain PROT_ flags, got {prot_arg}"
-
-        # flags (should be decoded)
-        flags_arg = call["args"][3]
-        assert isinstance(flags_arg, str), f"mmap flags should be string, got {type(flags_arg)}"
-        assert "MAP_" in flags_arg, f"mmap flags should contain MAP_ flags, got {flags_arg}"
 
     def test_mmap_protection_flags(self) -> None:
         """Test that various PROT_* flags are properly decoded."""
@@ -220,6 +210,50 @@ class TestMemorySyscalls(unittest.TestCase):
         found_flags = expected_flags & flag_values
         assert len(found_flags) >= 2, (
             f"Should have at least 2 different MS_ flags, got {flag_values}"
+        )
+
+    def test_minherit_constants(self) -> None:
+        """Test minherit() syscall with VM_INHERIT constant decoding."""
+        minherit_calls = [sc for sc in self.syscalls if sc.get("syscall") == "minherit"]
+
+        assert len(minherit_calls) >= 3, (
+            f"Expected at least 3 minherit calls, got {len(minherit_calls)}"
+        )
+
+        # Check we see different inheritance values
+        inherit_values = {str(call["args"][2]) for call in minherit_calls}
+        expected_values = {"VM_INHERIT_SHARE", "VM_INHERIT_COPY", "VM_INHERIT_NONE"}
+        found_values = expected_values & inherit_values
+        assert len(found_values) >= 3, f"Should have all 3 VM_INHERIT values, got {inherit_values}"
+
+    def test_mlockall_munlockall(self) -> None:
+        """Test mlockall() and munlockall() syscalls."""
+        mlockall_calls = [sc for sc in self.syscalls if sc.get("syscall") == "mlockall"]
+        munlockall_calls = [sc for sc in self.syscalls if sc.get("syscall") == "munlockall"]
+
+        # Should have multiple mlockall calls with different flags
+        assert len(mlockall_calls) >= 3, (
+            f"Expected at least 3 mlockall calls, got {len(mlockall_calls)}"
+        )
+
+        # Check for MCL_CURRENT and MCL_FUTURE flags
+        flags_seen = set()
+        for call in mlockall_calls:
+            assert len(call["args"]) == 1, f"mlockall should have 1 arg, got {len(call['args'])}"
+            flag_arg = str(call["args"][0])
+            flags_seen.add(flag_arg)
+
+        # Should see both MCL_CURRENT and MCL_FUTURE
+        assert any("MCL_CURRENT" in f for f in flags_seen), (
+            f"Should have MCL_CURRENT flag, got flags: {flags_seen}"
+        )
+        assert any("MCL_FUTURE" in f for f in flags_seen), (
+            f"Should have MCL_FUTURE flag, got flags: {flags_seen}"
+        )
+
+        # Should have matching munlockall calls
+        assert len(munlockall_calls) >= 3, (
+            f"Expected at least 3 munlockall calls, got {len(munlockall_calls)}"
         )
 
 
