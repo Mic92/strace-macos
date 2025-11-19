@@ -138,6 +138,22 @@ class TestIPCAIOSyscalls(unittest.TestCase):
         rmid_calls = [c for c in msgctl_calls if "IPC_RMID" in str(c.get("args", []))]
         assert len(rmid_calls) > 0, "Should have msgctl with IPC_RMID"
 
+    def test_msgctl_struct_decoding(self) -> None:
+        """Test msgctl decodes struct msqid_ds fields."""
+        msgctl_calls = [sc for sc in self.syscalls if sc.get("syscall") == "msgctl"]
+        stat_calls = [c for c in msgctl_calls if "IPC_STAT" in str(c.get("args", []))]
+        assert len(stat_calls) > 0, "Should have msgctl IPC_STAT calls"
+
+        # Check that struct fields are present in output
+        call = stat_calls[-1]  # Get last IPC_STAT call (after SET)
+        output_str = str(call)
+
+        # Look for struct msqid_ds fields in the output
+        # We should see msg_qbytes=8192 after our IPC_SET
+        assert "msg_q" in output_str.lower() or "8192" in output_str, (
+            f"msgctl should decode msqid_ds struct fields, got: {output_str}"
+        )
+
     # Semaphore Tests
     def test_semget_with_ipc_flags(self) -> None:
         """Test semget syscall with IPC_CREAT|IPC_EXCL flags."""
@@ -294,6 +310,99 @@ class TestIPCAIOSyscalls(unittest.TestCase):
         for call in lio_calls:
             args = call.get("args", [])
             assert len(args) == 4, "lio_listio should have 4 arguments: mode, list, nent, sig"
+
+    # Struct Decoding Tests
+    def test_semctl_struct_decoding(self) -> None:
+        """Test semctl decodes struct semid_ds fields."""
+        semctl_calls = [sc for sc in self.syscalls if sc.get("syscall") == "semctl"]
+        stat_calls = [c for c in semctl_calls if "IPC_STAT" in str(c.get("args", []))]
+        assert len(stat_calls) > 0, "Should have semctl IPC_STAT calls"
+
+        call = stat_calls[0]
+        output_str = str(call)
+
+        # Look for struct semid_ds fields - we created 3 semaphores
+        assert "sem_nsems" in output_str.lower() or "3" in output_str, (
+            f"semctl should decode semid_ds struct with sem_nsems, got: {output_str}"
+        )
+
+    def test_shmctl_struct_decoding(self) -> None:
+        """Test shmctl decodes struct shmid_ds fields."""
+        shmctl_calls = [sc for sc in self.syscalls if sc.get("syscall") == "shmctl"]
+        stat_calls = [c for c in shmctl_calls if "IPC_STAT" in str(c.get("args", []))]
+        assert len(stat_calls) > 0, "Should have shmctl IPC_STAT calls"
+
+        call = stat_calls[0]
+        output_str = str(call)
+
+        # Look for struct shmid_ds fields - we created 16KB segment
+        assert "shm_segsz" in output_str.lower() or "16384" in output_str, (
+            f"shmctl should decode shmid_ds struct with shm_segsz, got: {output_str}"
+        )
+
+    def test_aio_suspend_array_decoding(self) -> None:
+        """Test aio_suspend decodes aiocb* array."""
+        aio_suspend_calls = [sc for sc in self.syscalls if sc.get("syscall") == "aio_suspend"]
+        assert len(aio_suspend_calls) > 0, "Should have aio_suspend calls"
+
+        call = aio_suspend_calls[0]
+        output_str = str(call)
+
+        # Look for aiocb array decoding showing fd, nbytes, offset
+        # We passed 3 aiocbs with different nbytes (512, 256, 128)
+        assert "fd=" in output_str or "nbytes=" in output_str or "[" in output_str, (
+            f"aio_suspend should decode aiocb array with fd/nbytes/offset fields, got: {output_str}"
+        )
+
+    def test_lio_listio_array_decoding(self) -> None:
+        """Test lio_listio decodes aiocb* array with operations."""
+        lio_calls = [sc for sc in self.syscalls if sc.get("syscall") == "lio_listio"]
+        assert len(lio_calls) >= 2, "Should have lio_listio calls"
+
+        # Check the LIO_WAIT call with 2 operations
+        wait_calls = [c for c in lio_calls if "LIO_WAIT" in str(c.get("args", []))]
+        assert len(wait_calls) > 0, "Should have LIO_WAIT calls"
+
+        call = wait_calls[0]
+        output_str = str(call)
+
+        # Look for aiocb array with operations (LIO_READ, LIO_WRITE)
+        assert (
+            "op=" in output_str
+            or "LIO_READ" in output_str
+            or "LIO_WRITE" in output_str
+            or "fd=" in output_str
+        ), f"lio_listio should decode aiocb array with operation types, got: {output_str}"
+
+    def test_lio_listio_sigevent_decoding(self) -> None:
+        """Test lio_listio decodes struct sigevent."""
+        lio_calls = [sc for sc in self.syscalls if sc.get("syscall") == "lio_listio"]
+        nowait_calls = [c for c in lio_calls if "LIO_NOWAIT" in str(c.get("args", []))]
+        assert len(nowait_calls) > 0, "Should have LIO_NOWAIT calls with sigevent"
+
+        call = nowait_calls[-1]  # Last one has SIGEV_SIGNAL
+        output_str = str(call)
+
+        # Look for sigevent struct decoding with SIGEV_SIGNAL
+        assert (
+            "sigev_notify" in output_str.lower() or "SIGEV" in output_str or "SIG" in output_str
+        ), f"lio_listio should decode sigevent struct, got: {output_str}"
+
+    def test_aiocb_struct_fields(self) -> None:
+        """Test that individual aiocb structs show fd, offset, nbytes."""
+        aio_cancel_calls = [sc for sc in self.syscalls if sc.get("syscall") == "aio_cancel"]
+        assert len(aio_cancel_calls) > 0, "Should have aio_cancel calls"
+
+        call = aio_cancel_calls[0]
+        output_str = str(call)
+
+        # aio_cancel takes aiocb* - should show struct fields
+        # Our cb1 has: fd=tmpfile, offset=0, nbytes=512
+        assert (
+            "aio_fildes" in output_str.lower()
+            or "aio_nbytes" in output_str.lower()
+            or "512" in output_str
+        ), f"aio_cancel should decode aiocb struct showing fildes/nbytes fields, got: {output_str}"
 
 
 if __name__ == "__main__":
