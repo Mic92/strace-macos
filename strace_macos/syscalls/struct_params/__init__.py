@@ -20,6 +20,11 @@ from strace_macos.syscalls.struct_params.ipc_structs import (
 )
 from strace_macos.syscalls.struct_params.msghdr import MsghdrParam
 from strace_macos.syscalls.struct_params.sigevent import SigeventParam
+from strace_macos.syscalls.struct_params.signal_structs import (
+    SigactionParam,
+    SigsetParam,
+    StackParam,
+)
 from strace_macos.syscalls.struct_params.sockaddr import SockaddrParam
 from strace_macos.syscalls.struct_params.stat import StatParam
 from strace_macos.syscalls.struct_params.statfs import StatfsParam
@@ -38,8 +43,11 @@ __all__ = [
     "SembufParam",
     "SemidDsParam",
     "ShmidDsParam",
+    "SigactionParam",
     "SigeventParam",
+    "SigsetParam",
     "SockaddrParam",
+    "StackParam",
     "StatParam",
     "StatfsParam",
     "TermiosParam",

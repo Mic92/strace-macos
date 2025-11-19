@@ -429,6 +429,19 @@ class Tracer:
         if not syscall_def:
             return
 
+        # Avoid duplicate tracing when wrapper branches to __implementation
+        # Example: "kill" wrapper branches to "__kill" - only trace the wrapper
+        # Check if we've already started tracing this syscall from a wrapper
+        if function_name.startswith("__") and not syscall_def.name.startswith("__"):
+            # We're at __foo but breakpoint name is foo
+            # Check if we already have a pending syscall for this thread
+            # If yes, this is a duplicate (wrapper already traced)
+            # If no, this is the only symbol (no wrapper exists), so trace it
+            thread_has_pending = any(key[0] == thread_id for key in self.pending_syscalls)
+            if thread_has_pending:
+                # Already tracing a syscall in this thread - this is a duplicate
+                return
+
         # Check if we should trace this syscall
         if not self._should_trace_syscall(syscall_name):
             return
