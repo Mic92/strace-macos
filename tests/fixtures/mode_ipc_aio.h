@@ -3,6 +3,7 @@
  * Tests: Message queues (msgget, msgctl, msgsnd, msgrcv)
  *        Semaphores (semget, semctl, semop)
  *        Shared memory (shmget, shmat, shmctl, shmdt)
+ *        POSIX Shared memory (shm_open, shm_unlink)
  *        AIO (aio_cancel, aio_error, aio_return, aio_suspend, lio_listio)
  */
 
@@ -16,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ipc.h>
+#include <sys/mman.h>
 #include <sys/msg.h>
 #include <sys/sem.h>
 #include <sys/shm.h>
@@ -181,6 +183,28 @@ int mode_ipc_aio(int argc, char *argv[]) {
 
       /* shmctl - IPC_RMID (remove segment) */
       shmctl(shmid, IPC_RMID, NULL);
+    }
+  }
+
+  /* POSIX Shared Memory */
+  {
+    const char *shm_name = "/strace_test_shm";
+
+    /* shm_open - create shared memory object */
+    int shm_fd = shm_open(shm_name, O_CREAT | O_RDWR | O_EXCL, 0600);
+    if (shm_fd >= 0) {
+      /* Could use ftruncate here to set size, but we'll keep it simple */
+      close(shm_fd);
+
+      /* shm_unlink - remove shared memory object */
+      shm_unlink(shm_name);
+    }
+
+    /* shm_open - open existing (should fail since we just unlinked) */
+    shm_fd = shm_open(shm_name, O_RDONLY, 0);
+    if (shm_fd >= 0) {
+      close(shm_fd);
+      shm_unlink(shm_name);
     }
   }
 

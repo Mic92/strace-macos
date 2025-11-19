@@ -162,8 +162,8 @@ Legend:
 - [ ] fhopen
 
 ### Shared Memory File Operations
-- [ ] shm_open
-- [ ] shm_unlink
+- [x] shm_open (with O_* flag and octal mode decoding)
+- [x] shm_unlink
 
 ### Quota & Audit
 - [ ] quotactl

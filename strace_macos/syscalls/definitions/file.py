@@ -619,10 +619,10 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "shm_open",
         params=[
             StringParam(),
-            IntParam(),
+            CustomParam(decode_open_flags),
             VariantParam(
                 discriminator_index=1,  # flags argument
-                default_param=IntParam(),
+                default_param=OctalParam(),
                 skip_when_not_set=O_CREAT,  # Skip mode if O_CREAT not set
             ),
         ],

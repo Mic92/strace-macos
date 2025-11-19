@@ -5,6 +5,7 @@ Tests coverage for:
 - System V Message Queues: msgget, msgctl, msgsnd, msgrcv
 - System V Semaphores: semget, semctl, semop
 - System V Shared Memory: shmget, shmat, shmctl, shmdt
+- POSIX Shared Memory: shm_open, shm_unlink
 - AIO: aio_cancel, aio_error, aio_return, aio_suspend, lio_listio
 """
 
@@ -90,11 +91,14 @@ class TestIPCAIOSyscalls(unittest.TestCase):
             "semget",
             "semctl",
             "semop",
-            # Shared memory
+            # Shared memory (System V)
             "shmget",
             "shmat",
             "shmctl",
             "shmdt",
+            # Shared memory (POSIX)
+            "shm_open",
+            "shm_unlink",
             # AIO
             "aio_cancel",
             "aio_error",
@@ -264,6 +268,50 @@ class TestIPCAIOSyscalls(unittest.TestCase):
         call = shmdt_calls[0]
         args = call.get("args", [])
         assert len(args) == 1, "shmdt should have 1 argument (shmaddr)"
+
+    # POSIX Shared Memory Tests
+    def test_shm_open(self) -> None:
+        """Test shm_open syscall."""
+        shm_open_calls = [sc for sc in self.syscalls if sc.get("syscall") == "shm_open"]
+        assert len(shm_open_calls) >= 2, "Should have multiple shm_open calls"
+
+        # Find the call that creates /strace_test_shm (not the system one)
+        test_calls = [c for c in shm_open_calls if "/strace_test_shm" in str(c.get("args", []))]
+        assert len(test_calls) >= 1, "Should have shm_open call for /strace_test_shm"
+
+        # First call: create with O_CREAT|O_RDWR|O_EXCL
+        call = test_calls[0]
+        args = call.get("args", [])
+        assert len(args) == 3, "shm_open should have 3 arguments: name, oflag, mode"
+
+        # Check for name
+        name_arg = args[0]
+        assert "/strace_test_shm" in name_arg, f"shm_open should have name: {name_arg}"
+
+        # Check for flags (should be decoded symbolically)
+        flags_arg = args[1]
+        assert "O_CREAT" in flags_arg, f"shm_open flags should contain O_CREAT: {flags_arg}"
+        assert "O_RDWR" in flags_arg, f"shm_open flags should contain O_RDWR: {flags_arg}"
+        assert "O_EXCL" in flags_arg, f"shm_open flags should contain O_EXCL: {flags_arg}"
+
+        # Check for mode (should be octal)
+        mode_arg = args[2]
+        assert "0600" in mode_arg or "384" in str(mode_arg), (
+            f"shm_open mode should be 0600: {mode_arg}"
+        )
+
+    def test_shm_unlink(self) -> None:
+        """Test shm_unlink syscall."""
+        shm_unlink_calls = [sc for sc in self.syscalls if sc.get("syscall") == "shm_unlink"]
+        assert len(shm_unlink_calls) >= 1, "Should have shm_unlink call"
+
+        call = shm_unlink_calls[0]
+        args = call.get("args", [])
+        assert len(args) == 1, "shm_unlink should have 1 argument: name"
+
+        # Check for name
+        name_arg = args[0]
+        assert "/strace_test_shm" in name_arg, f"shm_unlink should have name: {name_arg}"
 
     # AIO Tests
     def test_aio_cancel(self) -> None:
