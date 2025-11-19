@@ -29,6 +29,7 @@ int mode_process_identity(int argc, char *argv[]);
 int mode_process_advanced(int argc, char *argv[]);
 int mode_signal(int argc, char *argv[]);
 int mode_kqueue_select(int argc, char *argv[]);
+int mode_fork_exec(int argc, char *argv[]);
 int mode_long_running(int argc, char *argv[]);
 int mode_fail(int argc, char *argv[]);
 int mode_default(int argc, char *argv[]);
@@ -60,6 +61,8 @@ static const test_mode_t modes[] = {
      "Signal handling ops (kill/sigaction/sigprocmask/pthread_kill/sigwait)"},
     {"--kqueue-select", mode_kqueue_select,
      "Kqueue/select ops (kqueue/kevent/kevent64/select/pselect/poll)"},
+    {"--fork-exec", mode_fork_exec,
+     "Fork/exec ops (fork/vfork/execve/posix_spawn)"},
     {"--long-running", mode_long_running,
      "Long-running process for attach testing"},
     {"--fail", mode_fail, "Exit with non-zero status"},

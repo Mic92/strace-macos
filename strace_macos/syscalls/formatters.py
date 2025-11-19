@@ -13,6 +13,7 @@ from strace_macos.syscalls.args import (
     PointerArg,
     SkipArg,
     StringArg,
+    StringArrayArg,
     StructArg,
     StructArrayArg,
     UnsignedArg,
@@ -71,6 +72,9 @@ class JSONFormatter:
             return None
         if isinstance(arg, StructArg):
             return arg.fields
+        if isinstance(arg, StringArrayArg):
+            # Return list of strings for JSON
+            return arg.strings
         if isinstance(arg, StructArrayArg):
             return arg.struct_list
         if isinstance(arg, IntPtrArg):

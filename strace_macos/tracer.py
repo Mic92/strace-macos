@@ -45,6 +45,7 @@ class Tracer:
         summary_only: bool = False,
         filter_expr: str | None = None,
         no_abbrev: bool = False,
+        follow_forks: bool = False,
     ) -> None:
         """Initialize the tracer.
 
@@ -54,12 +55,14 @@ class Tracer:
             summary_only: Whether to only output summary statistics
             filter_expr: Filter expression (e.g., "trace=open,close")
             no_abbrev: Disable symbolic decoding (show raw numeric values)
+            follow_forks: Whether to trace child processes (fork/vfork/posix_spawn)
         """
         self.output_file = output_file
         self.json_output = json_output
         self.summary_only = summary_only
         self.filter_expr = filter_expr
         self.no_abbrev = no_abbrev
+        self.follow_forks = follow_forks
 
         # Load LLDB
         self.lldb = load_lldb_module()

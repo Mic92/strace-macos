@@ -7,6 +7,7 @@
 #include "mode_file_metadata.h"
 #include "mode_file_ops.h"
 #include "mode_file_utilities.h"
+#include "mode_fork_exec.h"
 #include "mode_ipc_aio.h"
 #include "mode_kqueue_select.h"
 #include "mode_memory.h"

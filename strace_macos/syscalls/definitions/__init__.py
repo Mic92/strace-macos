@@ -18,6 +18,7 @@ from strace_macos.syscalls.args import (
     PointerArg,
     SkipArg,
     StringArg,
+    StringArrayArg,
     StructArg,
     SyscallArg,
     UnsignedArg,
@@ -186,6 +187,63 @@ class StringParam(Param):
         """Decode string pointer to StringArg."""
         string_val = self._read_string(process, raw_value)
         return StringArg(string_val)
+
+
+class ArrayOfStringsParam(Param):
+    """Parameter decoder for null-terminated arrays of strings (char *[]).
+
+    Used for argv[], envp[] in execve/posix_spawn.
+    Reads array of pointers until null pointer is found.
+    """
+
+    def __init__(self, max_strings: int = 1024) -> None:
+        """Initialize array of strings parameter.
+
+        Args:
+            max_strings: Maximum number of strings to read (safety limit)
+        """
+        self.max_strings = max_strings
+
+    def decode(
+        self,
+        tracer: Any,  # noqa: ARG002
+        process: Any,
+        raw_value: int,
+        all_args: list[int],  # noqa: ARG002
+        *,
+        at_entry: bool,  # noqa: ARG002
+    ) -> SyscallArg:
+        """Decode array of string pointers to StringArrayArg."""
+        import lldb  # noqa: PLC0415 - lazy import required for system Python
+
+        if raw_value == 0:
+            return PointerArg(0)
+
+        strings = []
+        error = lldb.SBError()
+        pointer_size = 8  # 64-bit pointers
+
+        for i in range(self.max_strings):
+            # Read pointer at index i
+            ptr_address = raw_value + (i * pointer_size)
+            ptr_data = process.ReadMemory(ptr_address, pointer_size, error)
+
+            if error.Fail():
+                # Can't read more pointers
+                break
+
+            # Convert bytes to pointer value (little-endian)
+            ptr_value = int.from_bytes(ptr_data, byteorder="little")
+
+            # Null pointer terminates the array
+            if ptr_value == 0:
+                break
+
+            # Read the string at this pointer (uses errors="replace" internally)
+            string_val = self._read_string(process, ptr_value)
+            strings.append(string_val)
+
+        return StringArrayArg(strings)
 
 
 class DirFdParam(Param):
