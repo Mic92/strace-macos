@@ -75,34 +75,6 @@ IPC_SYSCALLS: list[SyscallDef] = [
             PointerParam(),  # sigmask - TODO: decode sigset_t
         ],
     ),  # 312
-    SyscallDef(
-        numbers.SYS_select_nocancel,
-        "__select_nocancel",
-        params=[
-            IntParam(),
-            PointerParam(),
-            PointerParam(),
-            PointerParam(),
-            PointerParam(),
-        ],
-    ),  # 407
-    SyscallDef(
-        numbers.SYS_pselect_nocancel,
-        "__pselect_nocancel",
-        params=[
-            IntParam(),
-            PointerParam(),
-            PointerParam(),
-            PointerParam(),
-            PointerParam(),
-            PointerParam(),
-        ],
-    ),  # 417
-    SyscallDef(
-        numbers.SYS_poll_nocancel,
-        "__poll_nocancel",
-        params=[PointerParam(), UnsignedParam(), IntParam()],
-    ),  # 427
     # System V IPC
     SyscallDef(
         numbers.SYS_semsys,
@@ -407,38 +379,6 @@ IPC_SYSCALLS: list[SyscallDef] = [
             UnsignedParam(),
         ],
     ),  # 302
-    # Non-cancelable variants
-    SyscallDef(
-        numbers.SYS_msgsnd_nocancel,
-        "__msgsnd_nocancel",
-        params=[
-            IntParam(),
-            PointerParam(),
-            UnsignedParam(),
-            FlagsParam(MSGRCV_FLAGS),
-        ],
-    ),  # 418
-    SyscallDef(
-        numbers.SYS_msgrcv_nocancel,
-        "__msgrcv_nocancel",
-        params=[
-            IntParam(),
-            PointerParam(),
-            UnsignedParam(),
-            IntParam(),
-            FlagsParam(MSGRCV_FLAGS),
-        ],
-    ),  # 419
-    SyscallDef(
-        numbers.SYS_aio_suspend_nocancel,
-        "__aio_suspend_nocancel",
-        params=[PointerParam(), IntParam(), PointerParam()],  # Array of aiocb*, count, timeout
-    ),  # 421
-    SyscallDef(
-        numbers.SYS_sem_wait_nocancel,
-        "__sem_wait_nocancel",
-        params=[PointerParam()],
-    ),  # 420
     # Other IPC
     SyscallDef(
         numbers.SYS_guarded_kqueue_np,

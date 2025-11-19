@@ -177,41 +177,6 @@ PROCESS_SYSCALLS: list[SyscallDef] = [
         params=[IntParam(), PointerParam()],
     ),  # 390
     SyscallDef(
-        numbers.SYS_wait4_nocancel,
-        "__wait4_nocancel",
-        params=[IntParam(), PointerParam(), FlagsParam(WAIT_OPTIONS), PointerParam()],
-    ),  # 400
-    SyscallDef(
-        numbers.SYS_waitid_nocancel,
-        "__waitid_nocancel",
-        params=[
-            ConstParam(IDTYPE_CONSTANTS),
-            UnsignedParam(),
-            PointerParam(),
-            FlagsParam(WAITID_OPTIONS),
-        ],
-    ),  # 416
-    SyscallDef(
-        numbers.SYS_sem_wait_nocancel, "__sem_wait_nocancel", params=[PointerParam()]
-    ),  # 420
-    SyscallDef(
-        numbers.SYS___sigwait_nocancel,
-        "__sigwait_nocancel",
-        params=[PointerParam(), PointerParam()],
-    ),  # 422
-    SyscallDef(
-        numbers.SYS___semwait_signal_nocancel,
-        "__semwait_signal_nocancel",
-        params=[
-            IntParam(),
-            IntParam(),
-            IntParam(),
-            IntParam(),
-            IntParam(),
-            IntParam(),
-        ],
-    ),  # 423
-    SyscallDef(
         numbers.SYS_sfi_pidctl,
         "sfi_pidctl",
         params=[UnsignedParam(), IntParam(), UnsignedParam()],

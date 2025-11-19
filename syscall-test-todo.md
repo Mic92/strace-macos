@@ -26,12 +26,12 @@ Legend:
 - [x] lseek
 - [x] pread
 - [x] pread_nocancel
-- [ ] preadv
-- [ ] preadv_nocancel
+- [x] preadv (with iovec decoding and offset parameter)
+- [ ] preadv_nocancel (no public prototype - internal only)
 - [x] pwrite
 - [x] pwrite_nocancel
-- [ ] pwritev
-- [ ] pwritev_nocancel
+- [x] pwritev (with iovec decoding and offset parameter)
+- [ ] pwritev_nocancel (no public prototype - internal only)
 - [x] readv (with iovec decoding)
 - [x] readv_nocancel
 - [x] writev (with iovec decoding)
@@ -97,9 +97,9 @@ Legend:
 - [x] chdir
 - [x] fchdir
 - [x] chroot
-- [ ] getdirentries
-- [ ] getdirentries64
-- [ ] getdirentriesattr
+- [ ] getdirentries (deprecated with 64-bit inodes - cannot test)
+- [ ] getdirentries64 (no public prototype - internal only)
+- [ ] getdirentriesattr (no public prototype - internal only)
 
 ### File Locking & Synchronization
 - [x] flock (with LOCK_SH, LOCK_EX, LOCK_UN, LOCK_NB flag decoding)
@@ -185,16 +185,16 @@ Legend:
 ## Process Management Syscalls (75 total)
 
 ### Process Lifecycle
-- [ ] fork
-- [ ] vfork
-- [ ] execve
-- [ ] __mac_execve
-- [ ] posix_spawn
-- [ ] exit
-- [ ] wait4
-- [ ] wait4_nocancel
-- [ ] waitid
-- [ ] waitid_nocancel
+- [ ] fork (public prototype available)
+- [ ] vfork (public prototype available)
+- [ ] execve (public prototype available)
+- [ ] __mac_execve (no public prototype - internal only)
+- [ ] posix_spawn (public prototype available)
+- [ ] exit (public prototype available)
+- [ ] wait4 (deprecated/complex parameters)
+- [ ] wait4_nocancel (no public prototype - internal only)
+- [ ] waitid (complex parameters)
+- [ ] waitid_nocancel (no public prototype - internal only)
 
 ### Process Identity
 - [x] getpid
@@ -238,15 +238,15 @@ Legend:
 - [ ] pid_shutdown_sockets (no public prototype - skipped)
 
 ### Thread Management
-- [ ] bsdthread_create
-- [ ] bsdthread_register
-- [ ] bsdthread_terminate
-- [ ] bsdthread_ctl
-- [ ] thread_selfid (no public prototype - skipped)
-- [ ] thread_selfusage (no public prototype - skipped)
-- [ ] gettid (no public prototype - skipped)
-- [ ] settid (no public prototype - skipped)
-- [ ] settid_with_pid (no public prototype - skipped)
+- [ ] bsdthread_create (no public prototype - internal only)
+- [ ] bsdthread_register (no public prototype - internal only)
+- [ ] bsdthread_terminate (no public prototype - internal only)
+- [ ] bsdthread_ctl (no public prototype - internal only)
+- [ ] thread_selfid (no public prototype - internal only)
+- [ ] thread_selfusage (no public prototype - internal only)
+- [ ] gettid (no public prototype - internal only)
+- [ ] settid (no public prototype - internal only)
+- [ ] settid_with_pid (no public prototype - internal only)
 
 ### Login & Session
 - [x] getlogin (with buffer and size decoding)
@@ -254,15 +254,15 @@ Legend:
 - [x] issetugid (returns 0 or 1 for setuid/setgid taint check)
 
 ### Semaphore Operations (POSIX)
-- [ ] sem_wait
-- [ ] sem_wait_nocancel
-- [ ] sem_trywait
-- [ ] __semwait_signal
-- [ ] __semwait_signal_nocancel
+- [ ] sem_wait (public prototype available)
+- [ ] sem_wait_nocancel (no public prototype - internal only)
+- [ ] sem_trywait (public prototype available)
+- [ ] __semwait_signal (no public prototype - internal only)
+- [ ] __semwait_signal_nocancel (no public prototype - internal only)
 
 ### Signal Waiting
-- [ ] __sigwait
-- [ ] __sigwait_nocancel
+- [ ] __sigwait (no public prototype - use sigwait wrapper instead)
+- [ ] __sigwait_nocancel (no public prototype - internal only)
 
 ### Thread-specific Directory
 - [ ] __pthread_chdir
@@ -300,25 +300,25 @@ Legend:
 
 ### Socket Connection
 - [x] connect
-- [ ] connect_nocancel
-- [ ] connectx
-- [ ] disconnectx
+- [ ] connect_nocancel (no public prototype - internal only)
+- [ ] connectx (public prototype available)
+- [ ] disconnectx (public prototype available)
 - [x] bind
 - [x] listen
 - [x] accept
-- [ ] accept_nocancel
+- [ ] accept_nocancel (no public prototype - internal only)
 
 ### Socket I/O
 - [x] sendto (with buffer and flags decoding)
 - [x] sendto_nocancel
 - [x] sendmsg (with msghdr and iovec decoding)
 - [x] sendmsg_nocancel
-- [ ] sendmsg_x
+- [ ] sendmsg_x (no public prototype - internal only)
 - [x] recvfrom (with flags decoding)
 - [x] recvfrom_nocancel
 - [x] recvmsg (with msghdr decoding)
 - [x] recvmsg_nocancel
-- [ ] recvmsg_x
+- [ ] recvmsg_x (no public prototype - internal only)
 
 ### Socket Control & Information
 - [x] getsockname (with sockaddr decoding)
@@ -372,11 +372,11 @@ Legend:
 
 ### Select & Poll
 - [x] select (with fd_set and struct timeval decoding)
-- [ ] select_nocancel (no public prototype - skipped)
+- [ ] select_nocancel (no public prototype - internal only)
 - [x] pselect (with fd_set and struct timespec decoding)
-- [ ] pselect_nocancel (no public prototype - skipped)
+- [ ] pselect_nocancel (no public prototype - internal only)
 - [x] poll (with struct pollfd array and POLL* event flag decoding)
-- [ ] poll_nocancel (no public prototype - skipped)
+- [ ] poll_nocancel (no public prototype - internal only)
 
 ### System V Message Queues
 - [x] msgget - with IPC_CREAT|IPC_EXCL|mode flags
@@ -434,16 +434,16 @@ Legend:
 - [x] sigaction (with struct sigaction and SA_* flag decoding)
 - [x] sigprocmask (with SIG_BLOCK/SETMASK/UNBLOCK and sigset_t decoding)
 - [x] sigpending (with sigset_t decoding)
-- [ ] sigsuspend (blocking syscall - requires complex synchronization to test)
-- [ ] sigsuspend_nocancel (no public prototype - internal variant)
+- [ ] sigsuspend (public prototype available - blocking syscall, complex to test)
+- [ ] sigsuspend_nocancel (no public prototype - internal only)
 - [x] sigaltstack (with stack_t struct and SS_* flag decoding)
 - [ ] sigreturn (no public prototype - kernel-internal)
 - [x] kill (with signal constant decoding)
 - [x] pthread_kill (public wrapper for __pthread_kill, with signal decoding)
 - [x] pthread_sigmask (public wrapper for __pthread_sigmask, with SIG_* and sigset_t decoding)
-- [ ] __disable_threadsignal (no public prototype - skipped)
-- [ ] sigwait (POSIX standard - wrapper for __sigwait) (blocking syscall - complex to test)
-- [ ] __sigwait_nocancel (no public prototype - internal variant)
+- [ ] __disable_threadsignal (no public prototype - internal only)
+- [ ] sigwait (public prototype available - blocking syscall, complex to test)
+- [ ] __sigwait_nocancel (no public prototype - internal only)
 
 ---
 
@@ -519,17 +519,17 @@ Legend:
 
 ---
 
-## Time/Timer Syscalls (7 total)
+## Time/Timer Syscalls (9 total)
 
-- [ ] gettimeofday
-- [ ] settimeofday
-- [ ] adjtime
-- [ ] getitimer
-- [ ] setitimer
+- [ ] gettimeofday (public prototype available)
+- [ ] settimeofday (public prototype available)
+- [ ] adjtime (public prototype available)
+- [ ] getitimer (public prototype available)
+- [ ] setitimer (public prototype available)
 - [x] utimes
 - [x] futimes
-- [ ] ntp_adjtime
-- [ ] ntp_gettime
+- [ ] ntp_adjtime (no public prototype - internal only)
+- [ ] ntp_gettime (no public prototype - internal only)
 
 ---
 
@@ -568,9 +568,7 @@ Legend:
 - Mount/unmount operations
 
 ### Priority Test Candidates (Remaining)
-1. **Process lifecycle**: fork, execve, wait4 (high-priority fundamentals, but complex to test)
-2. **Extended I/O**: preadv, pwritev (iovec variants of pread/pwrite)
-3. **Time/timer**: gettimeofday, setitimer, getitimer (commonly used in profiling)
-4. **Directory reading**: getdirentries64 (commonly used directory iteration)
-5. **Thread management**: bsdthread_* (if public prototypes exist)
-6. **System info**: sysctl, sysctlbyname (widely used for system queries)
+1. **Time/timer** (✓ public prototypes): gettimeofday, settimeofday, getitimer, setitimer, adjtime
+2. **System info** (✓ public prototypes): sysctl, sysctlbyname
+3. **Process lifecycle** (✓ public prototypes, complex): fork, vfork, execve, posix_spawn
+4. **Signal** (✓ public prototypes, blocking): sigsuspend, sigwait

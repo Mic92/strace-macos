@@ -168,66 +168,6 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
         ],
     ),  # 135
     SyscallDef(
-        numbers.SYS_recvmsg_nocancel,
-        "__recvmsg_nocancel",
-        params=[
-            FileDescriptorParam(),
-            MsghdrParam(ParamDirection.IN),
-            FlagsParam(MSG_FLAGS),
-        ],
-    ),  # 401
-    SyscallDef(
-        numbers.SYS_sendmsg_nocancel,
-        "__sendmsg_nocancel",
-        params=[
-            FileDescriptorParam(),
-            MsghdrParam(ParamDirection.IN),
-            FlagsParam(MSG_FLAGS),
-        ],
-    ),  # 402
-    SyscallDef(
-        numbers.SYS_recvfrom_nocancel,
-        "__recvfrom_nocancel",
-        params=[
-            FileDescriptorParam(),
-            BufferParam(size_arg_index=2, direction=ParamDirection.OUT),
-            UnsignedParam(),
-            FlagsParam(MSG_FLAGS),
-            PointerParam(),
-            PointerParam(),
-        ],
-    ),  # 403
-    SyscallDef(
-        numbers.SYS_accept_nocancel,
-        "__accept_nocancel",
-        params=[
-            FileDescriptorParam(),
-            SockaddrParam(ParamDirection.OUT),
-            PointerParam(),
-        ],
-    ),  # 404
-    SyscallDef(
-        numbers.SYS_connect_nocancel,
-        "__connect_nocancel",
-        params=[
-            FileDescriptorParam(),
-            SockaddrParam(ParamDirection.IN),
-            UnsignedParam(),
-        ],
-    ),  # 409
-    SyscallDef(
-        numbers.SYS_sendto_nocancel,
-        "__sendto_nocancel",
-        params=[
-            FileDescriptorParam(),
-            BufferParam(size_arg_index=2, direction=ParamDirection.IN),
-            UnsignedParam(),
-            FlagsParam(MSG_FLAGS),
-            PointerParam(),
-            UnsignedParam(),
-        ],
-    ),  # 413
-    SyscallDef(
         numbers.SYS_pid_shutdown_sockets,
         "pid_shutdown_sockets",
         params=[IntParam(), IntParam()],

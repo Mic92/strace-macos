@@ -285,26 +285,6 @@ FILE_SYSCALLS: list[SyscallDef] = [
             IntParam(),
         ],
     ),  # 527
-    SyscallDef(
-        numbers.SYS_preadv_nocancel,
-        "__preadv_nocancel",
-        params=[
-            FileDescriptorParam(),
-            IovecParam(count_arg_index=2, direction=ParamDirection.OUT),
-            IntParam(),
-            IntParam(),
-        ],
-    ),  # 528
-    SyscallDef(
-        numbers.SYS_pwritev_nocancel,
-        "__pwritev_nocancel",
-        params=[
-            FileDescriptorParam(),
-            IovecParam(count_arg_index=2, direction=ParamDirection.IN),
-            IntParam(),
-            IntParam(),
-        ],
-    ),  # 529
     SyscallDef(numbers.SYS_nfssvc, "nfssvc", params=[IntParam(), PointerParam()]),  # 155
     SyscallDef(
         numbers.SYS_statfs,
@@ -904,21 +884,6 @@ FILE_SYSCALLS: list[SyscallDef] = [
         ],
     ),  # 423
     SyscallDef(
-        numbers.SYS_openat_nocancel,
-        "__openat_nocancel",
-        params=[
-            DirFdParam(),
-            StringParam(),
-            CustomParam(decode_open_flags),
-            VariantParam(
-                discriminator_index=2,  # flags argument
-                default_param=OctalParam(),
-                skip_when_not_set=O_CREAT,  # Skip mode if O_CREAT not set
-            ),
-        ],
-        variadic_start=3,  # Mode argument is variadic
-    ),  # 424
-    SyscallDef(
         numbers.SYS_renameat,
         "renameat",
         params=[
@@ -1067,107 +1032,6 @@ FILE_SYSCALLS: list[SyscallDef] = [
             UnsignedParam(),
         ],
     ),  # 489
-    SyscallDef(
-        numbers.SYS_fsync_nocancel,
-        "__fsync_nocancel",
-        params=[FileDescriptorParam()],
-    ),  # 408
-    SyscallDef(
-        numbers.SYS_open_nocancel,
-        "__open_nocancel",
-        params=[
-            StringParam(),
-            CustomParam(decode_open_flags),
-            VariantParam(
-                discriminator_index=1,  # flags argument
-                default_param=OctalParam(),
-                skip_when_not_set=O_CREAT,  # Skip mode if O_CREAT not set
-            ),
-        ],
-        variadic_start=2,  # Mode argument is variadic
-    ),  # 398
-    SyscallDef(
-        numbers.SYS_close_nocancel,
-        "__close_nocancel",
-        params=[FileDescriptorParam()],
-    ),  # 399
-    SyscallDef(
-        numbers.SYS_read_nocancel,
-        "__read_nocancel",
-        params=[
-            FileDescriptorParam(),
-            BufferParam(size_arg_index=2, direction=ParamDirection.OUT),
-            UnsignedParam(),
-        ],
-    ),  # 396
-    SyscallDef(
-        numbers.SYS_write_nocancel,
-        "__write_nocancel",
-        params=[
-            FileDescriptorParam(),
-            BufferParam(size_arg_index=2, direction=ParamDirection.IN),
-            UnsignedParam(),
-        ],
-    ),  # 397
-    SyscallDef(
-        numbers.SYS_pread_nocancel,
-        "__pread_nocancel",
-        params=[
-            FileDescriptorParam(),
-            BufferParam(size_arg_index=2, direction=ParamDirection.OUT),
-            UnsignedParam(),
-            IntParam(),
-        ],
-    ),  # 414
-    SyscallDef(
-        numbers.SYS_pwrite_nocancel,
-        "__pwrite_nocancel",
-        params=[
-            FileDescriptorParam(),
-            BufferParam(size_arg_index=2, direction=ParamDirection.IN),
-            UnsignedParam(),
-            IntParam(),
-        ],
-    ),  # 415
-    SyscallDef(
-        numbers.SYS_readv_nocancel,
-        "__readv_nocancel",
-        params=[
-            FileDescriptorParam(),
-            IovecParam(count_arg_index=2, direction=ParamDirection.OUT),
-            IntParam(),
-        ],
-    ),  # 411
-    SyscallDef(
-        numbers.SYS_writev_nocancel,
-        "__writev_nocancel",
-        params=[
-            FileDescriptorParam(),
-            IovecParam(count_arg_index=2, direction=ParamDirection.IN),
-            IntParam(),
-        ],
-    ),  # 412
-    SyscallDef(
-        numbers.SYS_fcntl_nocancel,
-        "__fcntl_nocancel",
-        params=[
-            FileDescriptorParam(),
-            ConstParam(FCNTL_COMMANDS),
-            VariantParam(
-                discriminator_index=1,  # cmd argument
-                variants={
-                    0: FileDescriptorParam(),  # F_DUPFD - takes fd arg
-                    67: FileDescriptorParam(),  # F_DUPFD_CLOEXEC - takes fd arg
-                    2: FlagsParam(FD_FLAGS),  # F_SETFD - FD_CLOEXEC flags
-                    4: CustomParam(decode_open_flags),  # F_SETFL - O_* file status flags
-                },
-                skip_for={1, 3},  # F_GETFD, F_GETFL - no third argument
-                default_param=IntParam(),  # Other commands take int
-            ),
-        ],
-        return_decoder=decode_fcntl_return,
-        variadic_start=2,  # Third argument is variadic
-    ),  # 406
     SyscallDef(
         numbers.SYS_stat64,
         "stat64",

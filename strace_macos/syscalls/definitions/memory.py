@@ -105,11 +105,6 @@ MEMORY_SYSCALLS: list[SyscallDef] = [
         ],
     ),  # 536
     SyscallDef(
-        numbers.SYS_msync_nocancel,
-        "__msync_nocancel",
-        params=[PointerParam(), UnsignedParam(), FlagsParam(MSYNC_FLAGS)],
-    ),  # 405
-    SyscallDef(
         numbers.SYS_msync,
         "msync",
         params=[PointerParam(), UnsignedParam(), FlagsParam(MSYNC_FLAGS)],
