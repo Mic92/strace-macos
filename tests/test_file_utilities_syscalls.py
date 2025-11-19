@@ -15,6 +15,8 @@ Tests coverage for:
 - getxattr, fgetxattr, setxattr, fsetxattr, fremovexattr (extended attributes)
 - fsctl, ffsctl, fsgetpath (filesystem control)
 - copyfile, searchfs, exchangedata, undelete, revoke (special filesystem operations)
+- getfh, fhopen (file handle operations)
+- chflags, fchflags (file flags)
 """
 
 from __future__ import annotations
@@ -403,6 +405,66 @@ class TestFileUtilitiesSyscalls(unittest.TestCase):
         # undelete will fail on modern macOS but should be traced
         sth.assert_min_call_count(undelete_calls, 1, "undelete")
         sth.assert_min_call_count(revoke_calls, 1, "revoke")
+
+    def test_file_handle_operations(self) -> None:
+        """Test getfh() and fhopen() syscalls."""
+        getfh_calls = sth.filter_syscalls(self.syscalls, "getfh")
+        fhopen_calls = sth.filter_syscalls(self.syscalls, "fhopen")
+
+        # getfh should be called at least once
+        sth.assert_min_call_count(getfh_calls, 1, "getfh")
+
+        if getfh_calls:
+            # Expects: path, fhp
+            call = getfh_calls[0]
+            sth.assert_arg_count(call, 2, "getfh")
+            sth.assert_arg_type(call, 0, str, "getfh path")
+            # Second arg is a pointer to file handle buffer
+
+        # fhopen may or may not succeed (likely fails for security reasons)
+        # but should be attempted if getfh succeeded
+        if fhopen_calls:
+            # Expects: fhp, flags
+            call = fhopen_calls[0]
+            sth.assert_arg_count(call, 2, "fhopen")
+            # First arg is file handle pointer
+            # Second arg should be flags (O_RDONLY in our test)
+
+    def test_file_flags_operations(self) -> None:
+        """Test chflags() and fchflags() syscalls."""
+        chflags_calls = sth.filter_syscalls(self.syscalls, "chflags")
+        fchflags_calls = sth.filter_syscalls(self.syscalls, "fchflags")
+
+        # Should have multiple chflags calls (clearing and setting flags)
+        sth.assert_min_call_count(chflags_calls, 3, "chflags")
+
+        for call in chflags_calls:
+            # Expects: path, flags
+            sth.assert_arg_count(call, 2, "chflags")
+            sth.assert_arg_type(call, 0, str, "chflags path")
+            sth.assert_arg_type(call, 1, (int, str), "chflags flags")
+
+        # Should have multiple fchflags calls
+        sth.assert_min_call_count(fchflags_calls, 3, "fchflags")
+
+        for call in fchflags_calls:
+            # Expects: fd, flags
+            sth.assert_arg_count(call, 2, "fchflags")
+            sth.assert_arg_type(call, 0, int, "fchflags fd")
+            sth.assert_arg_type(call, 1, (int, str), "fchflags flags")
+
+        # Check that we tested UF_NODUMP flag (0x1)
+        all_flags = sth.collect_flags_from_calls(chflags_calls, 1)
+        all_flags.update(sth.collect_flags_from_calls(fchflags_calls, 1))
+
+        # Should have 0 (clear flags) and UF_NODUMP (0x1 or symbolic)
+        assert any(f in {"0", 0} for f in all_flags), (
+            f"Should have flag value 0, got flags: {all_flags}"
+        )
+        # UF_NODUMP might be decoded symbolically or as 0x1
+        assert any("UF_NODUMP" in str(f) or f in {1, "0x1", "0x0001"} for f in all_flags), (
+            f"Should have UF_NODUMP flag, got flags: {all_flags}"
+        )
 
 
 if __name__ == "__main__":

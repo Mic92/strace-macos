@@ -158,8 +158,8 @@ Legend:
 - [ ] delete (conflicts with C++ keyword - skipped)
 - [x] undelete
 - [x] revoke
-- [ ] getfh
-- [ ] fhopen
+- [x] getfh
+- [x] fhopen
 
 ### Shared Memory File Operations
 - [x] shm_open (with O_* flag and octal mode decoding)
@@ -173,8 +173,8 @@ Legend:
 - [ ] auditctl
 
 ### Miscellaneous File Operations
-- [ ] chflags
-- [ ] fchflags
+- [x] chflags (with file flag decoding)
+- [x] fchflags (with file flag decoding)
 - [ ] mremap_encrypted
 - [ ] nfssvc
 - [x] mkstemp (tested via test_fd_ops)
