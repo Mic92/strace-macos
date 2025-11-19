@@ -219,34 +219,34 @@ Legend:
 - [x] initgroups (with username string decoding)
 
 ### Process Priority & Resources
-- [ ] getpriority
-- [ ] setpriority
-- [ ] getrlimit
-- [ ] setrlimit
-- [ ] getrusage
-- [ ] proc_rlimit_control
+- [x] getpriority (with PRIO_* constant decoding)
+- [x] setpriority (with PRIO_* constant decoding)
+- [x] getrlimit (with RLIMIT_* constants and struct rlimit decoding)
+- [x] setrlimit (with RLIMIT_* constants and struct rlimit decoding)
+- [x] getrusage (with RUSAGE_* constants and struct rusage decoding)
+- [ ] proc_rlimit_control (no public prototype - skipped)
 
 ### Process Information & Control
-- [ ] proc_info
-- [ ] proc_info_extended_id
-- [ ] proc_trace_log
-- [ ] proc_uuid_policy
-- [ ] process_policy
-- [ ] pid_suspend
-- [ ] pid_resume
-- [ ] pid_hibernate
-- [ ] pid_shutdown_sockets
+- [ ] proc_info (no public prototype - proc_pidinfo wrapper doesn't generate traceable syscalls)
+- [ ] proc_info_extended_id (no public prototype - skipped)
+- [ ] proc_trace_log (no public prototype - skipped)
+- [ ] proc_uuid_policy (no public prototype - skipped)
+- [ ] process_policy (no public prototype - skipped)
+- [ ] pid_suspend (no public prototype - skipped)
+- [ ] pid_resume (no public prototype - skipped)
+- [ ] pid_hibernate (no public prototype - skipped)
+- [ ] pid_shutdown_sockets (no public prototype - skipped)
 
 ### Thread Management
 - [ ] bsdthread_create
 - [ ] bsdthread_register
 - [ ] bsdthread_terminate
 - [ ] bsdthread_ctl
-- [ ] thread_selfid
-- [ ] thread_selfusage
-- [ ] gettid
-- [ ] settid
-- [ ] settid_with_pid
+- [ ] thread_selfid (no public prototype - skipped)
+- [ ] thread_selfusage (no public prototype - skipped)
+- [ ] gettid (no public prototype - skipped)
+- [ ] settid (no public prototype - skipped)
+- [ ] settid_with_pid (no public prototype - skipped)
 
 ### Login & Session
 - [x] getlogin (with buffer and size decoding)
