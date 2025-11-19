@@ -431,19 +431,19 @@ Legend:
 
 ## Signal Handling Syscalls (13 total)
 
-- [ ] sigaction
-- [ ] sigprocmask
-- [ ] sigpending
-- [ ] sigsuspend
-- [ ] sigsuspend_nocancel
-- [ ] sigaltstack
-- [ ] sigreturn
-- [ ] kill
-- [ ] __pthread_kill
-- [ ] __pthread_sigmask
-- [ ] __disable_threadsignal
-- [ ] __sigwait
-- [ ] __sigwait_nocancel
+- [x] sigaction (with struct sigaction and SA_* flag decoding)
+- [x] sigprocmask (with SIG_BLOCK/SETMASK/UNBLOCK and sigset_t decoding)
+- [x] sigpending (with sigset_t decoding)
+- [ ] sigsuspend (blocking syscall - requires complex synchronization to test)
+- [ ] sigsuspend_nocancel (no public prototype - internal variant)
+- [x] sigaltstack (with stack_t struct and SS_* flag decoding)
+- [ ] sigreturn (no public prototype - kernel-internal)
+- [x] kill (with signal constant decoding)
+- [x] pthread_kill (public wrapper for __pthread_kill, with signal decoding)
+- [x] pthread_sigmask (public wrapper for __pthread_sigmask, with SIG_* and sigset_t decoding)
+- [ ] __disable_threadsignal (no public prototype - skipped)
+- [ ] sigwait (POSIX standard - wrapper for __sigwait) (blocking syscall - complex to test)
+- [ ] __sigwait_nocancel (no public prototype - internal variant)
 
 ---
 
