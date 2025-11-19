@@ -35,9 +35,11 @@ static const test_mode_t modes[] = {
     {"--file-ops", mode_file_ops, "Perform basic file operations"},
     {"--file-ops-loop", mode_file_ops_loop,
      "Loop file operations for attach testing"},
-    {"--fd-ops", mode_fd_ops, "Perform fd operations (readv/writev/dup/fcntl/ioctl)"},
+    {"--fd-ops", mode_fd_ops,
+     "Perform fd operations (readv/writev/dup/fcntl/ioctl)"},
     {"--file-metadata", mode_file_metadata,
-     "File metadata ops (access/chmod/chown/link/symlink/mkdir/rename/unlinkat)"},
+     "File metadata ops "
+     "(access/chmod/chown/link/symlink/mkdir/rename/unlinkat)"},
     {"--file-utilities", mode_file_utilities,
      "File utilities (flock/fsync/chdir/truncate/utimes/mkfifo/mknod)"},
     {"--ipc-aio", mode_ipc_aio,

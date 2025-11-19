@@ -80,13 +80,13 @@ int mode_fd_ops(int argc, char *argv[]) {
   if (flags >= 0) {
     // Call fcntl through a variable to force proper register loading
     int cloexec_value = FD_CLOEXEC;
-    fcntl(fd, F_SETFD, cloexec_value);  // Explicitly set FD_CLOEXEC for testing
+    fcntl(fd, F_SETFD, cloexec_value); // Explicitly set FD_CLOEXEC for testing
   }
 
   /* 9. fcntl - get/set file status flags */
   flags = fcntl(fd, F_GETFL);
   if (flags >= 0) {
-    fcntl(fd, F_SETFL, O_RDWR | O_APPEND);  // Explicitly set flags for testing
+    fcntl(fd, F_SETFL, O_RDWR | O_APPEND); // Explicitly set flags for testing
   }
 
   /* 10. ioctl - test with FIOCLEX (set close-on-exec) */

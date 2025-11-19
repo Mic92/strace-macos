@@ -139,8 +139,8 @@ int mode_network(int argc, char *argv[]) {
         /* Server: accept connection */
         addr_len = sizeof(peer_addr);
         /* 14. accept - accept connection */
-        int conn = accept(listen_sock, (struct sockaddr *)&peer_addr,
-                          &addr_len);
+        int conn =
+            accept(listen_sock, (struct sockaddr *)&peer_addr, &addr_len);
         if (conn >= 0) {
           close(conn);
         }

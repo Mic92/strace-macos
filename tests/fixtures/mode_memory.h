@@ -19,15 +19,15 @@ int mode_memory(int argc, char *argv[]) {
   (void)argv; /* Unused parameter */
   void *addr;
   size_t page_size = getpagesize();
-  size_t map_size = page_size * 4;  /* 4 pages */
+  size_t map_size = page_size * 4; /* 4 pages */
   int fd = -1;
   (void)fd; /* Unused but may be needed for future mmap file tests */
 
   /* Test mmap with anonymous memory, different protection flags */
 
   /* Anonymous private mapping with read+write */
-  addr = mmap(NULL, map_size, PROT_READ | PROT_WRITE,
-              MAP_PRIVATE | MAP_ANON, -1, 0);
+  addr = mmap(NULL, map_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON,
+              -1, 0);
   if (addr != MAP_FAILED) {
     /* Write some data */
     memset(addr, 0xAA, page_size);
@@ -69,8 +69,8 @@ int mode_memory(int argc, char *argv[]) {
   /* Test mmap with different flag combinations */
 
   /* Shared anonymous mapping */
-  addr = mmap(NULL, page_size, PROT_READ | PROT_WRITE,
-              MAP_SHARED | MAP_ANON, -1, 0);
+  addr = mmap(NULL, page_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON,
+              -1, 0);
   if (addr != MAP_FAILED) {
     munmap(addr, page_size);
   }
@@ -123,8 +123,8 @@ int mode_memory(int argc, char *argv[]) {
   }
 
   /* Test minherit() - set inheritance of memory region */
-  addr = mmap(NULL, page_size, PROT_READ | PROT_WRITE,
-              MAP_PRIVATE | MAP_ANON, -1, 0);
+  addr = mmap(NULL, page_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON,
+              -1, 0);
   if (addr != MAP_FAILED) {
     minherit(addr, page_size, VM_INHERIT_SHARE);
     minherit(addr, page_size, VM_INHERIT_COPY);

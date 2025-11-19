@@ -83,13 +83,13 @@ int mode_file_utilities(int argc, char *argv[]) {
   /* === FILE LOCKING TESTS === */
 
   /* Test flock() with different operations */
-  flock(fd1, LOCK_SH);              /* Shared lock */
-  flock(fd1, LOCK_UN);              /* Unlock */
-  flock(fd1, LOCK_EX);              /* Exclusive lock */
-  flock(fd1, LOCK_UN);              /* Unlock */
-  flock(fd1, LOCK_EX | LOCK_NB);    /* Non-blocking exclusive */
-  flock(fd1, LOCK_UN);              /* Unlock */
-  flock(fd2, LOCK_SH | LOCK_NB);    /* Non-blocking shared */
+  flock(fd1, LOCK_SH);           /* Shared lock */
+  flock(fd1, LOCK_UN);           /* Unlock */
+  flock(fd1, LOCK_EX);           /* Exclusive lock */
+  flock(fd1, LOCK_UN);           /* Unlock */
+  flock(fd1, LOCK_EX | LOCK_NB); /* Non-blocking exclusive */
+  flock(fd1, LOCK_UN);           /* Unlock */
+  flock(fd2, LOCK_SH | LOCK_NB); /* Non-blocking shared */
 
   /* === SYNC TESTS === */
 
@@ -133,16 +133,16 @@ int mode_file_utilities(int argc, char *argv[]) {
   truncate(test_file1, 0);   /* Truncate to empty */
 
   /* Test ftruncate() - truncate via file descriptor */
-  ftruncate(fd1, 5);   /* Truncate to 5 bytes */
-  ftruncate(fd1, 50);  /* Extend to 50 bytes */
-  ftruncate(fd1, 0);   /* Truncate to empty */
+  ftruncate(fd1, 5);  /* Truncate to 5 bytes */
+  ftruncate(fd1, 50); /* Extend to 50 bytes */
+  ftruncate(fd1, 0);  /* Truncate to empty */
 
   /* === TIME MODIFICATION TESTS === */
 
   /* Set up timeval structures for utimes/futimes */
-  times[0].tv_sec = 1000000000;  /* Access time */
+  times[0].tv_sec = 1000000000; /* Access time */
   times[0].tv_usec = 0;
-  times[1].tv_sec = 1000000000;  /* Modification time */
+  times[1].tv_sec = 1000000000; /* Modification time */
   times[1].tv_usec = 0;
 
   /* Test utimes() - set file access and modification times */
@@ -369,7 +369,8 @@ int mode_file_utilities(int argc, char *argv[]) {
     fremovexattr(fd1, "com.apple.testattr", XATTR_NOFOLLOW);
   }
 
-  /* Note: getdirentries/getdirentries64 don't have proper headers on modern macOS */
+  /* Note: getdirentries/getdirentries64 don't have proper headers on modern
+   * macOS */
 
   /* === FILE SYSTEM CONTROL SYSCALLS === */
 

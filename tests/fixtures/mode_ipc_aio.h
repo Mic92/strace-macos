@@ -42,7 +42,7 @@ int mode_ipc_aio(int argc, char *argv[]) {
        * buf.msg_qbytes should be system default */
 
       /* msgctl - IPC_SET (modify queue bytes limit) */
-      buf.msg_qbytes = 8192;  /* Set to 8KB */
+      buf.msg_qbytes = 8192; /* Set to 8KB */
       msgctl(msgid, IPC_SET, &buf);
 
       /* msgctl - IPC_STAT again to verify the change */
@@ -90,16 +90,18 @@ int mode_ipc_aio(int argc, char *argv[]) {
       /* semctl - GETPID (get PID of last operation) */
       semctl(semid, 0, GETPID, arg);
 
-      /* semctl - GETNCNT (get number of processes waiting for value to increase) */
+      /* semctl - GETNCNT (get number of processes waiting for value to
+       * increase) */
       semctl(semid, 0, GETNCNT, arg);
 
-      /* semctl - GETZCNT (get number of processes waiting for value to be zero) */
+      /* semctl - GETZCNT (get number of processes waiting for value to be zero)
+       */
       semctl(semid, 0, GETZCNT, arg);
 
       /* semop - increment semaphore with SEM_UNDO flag */
       struct sembuf sop;
       sop.sem_num = 0;
-      sop.sem_op = 1;  /* increment by 1 */
+      sop.sem_op = 1; /* increment by 1 */
       sop.sem_flg = IPC_NOWAIT | SEM_UNDO;
       semop(semid, &sop, 1);
 
@@ -213,7 +215,7 @@ int mode_ipc_aio(int argc, char *argv[]) {
       cb2.aio_buf = buf2;
       cb2.aio_nbytes = 256;
       cb2.aio_reqprio = 0;
-      cb2.aio_sigevent.sigev_notify = SIGEV_NONE;  /* Don't send real signals */
+      cb2.aio_sigevent.sigev_notify = SIGEV_NONE; /* Don't send real signals */
       cb2.aio_sigevent.sigev_signo = 0;
       cb2.aio_lio_opcode = LIO_WRITE;
 
@@ -251,7 +253,7 @@ int mode_ipc_aio(int argc, char *argv[]) {
       struct aiocb *list_nowait[3] = {&cb1, &cb2, &cb3};
       struct sigevent sig_event;
       memset(&sig_event, 0, sizeof(sig_event));
-      sig_event.sigev_notify = SIGEV_NONE;  /* Don't send real signals */
+      sig_event.sigev_notify = SIGEV_NONE; /* Don't send real signals */
       sig_event.sigev_signo = 0;
       lio_listio(LIO_NOWAIT, list_nowait, 3, &sig_event);
 
