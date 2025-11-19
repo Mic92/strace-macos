@@ -12,11 +12,11 @@ Legend:
 - [x] open (with variadic arg handling)
 - [x] openat (with variadic arg handling)
 - [x] close
-- [ ] close_nocancel
+- [x] close_nocancel
 - [x] read
-- [ ] read_nocancel
+- [x] read_nocancel
 - [x] write
-- [ ] write_nocancel
+- [x] write_nocancel
 - [x] unlink
 - [x] unlinkat (with AT_FDCWD and AT_REMOVEDIR flag decoding)
 
@@ -25,17 +25,17 @@ Legend:
 - [x] dup2
 - [x] lseek
 - [x] pread
-- [ ] pread_nocancel
+- [x] pread_nocancel
 - [ ] preadv
 - [ ] preadv_nocancel
 - [x] pwrite
-- [ ] pwrite_nocancel
+- [x] pwrite_nocancel
 - [ ] pwritev
 - [ ] pwritev_nocancel
 - [x] readv (with iovec decoding)
-- [ ] readv_nocancel
+- [x] readv_nocancel
 - [x] writev (with iovec decoding)
-- [ ] writev_nocancel
+- [x] writev_nocancel
 
 ### File Status & Metadata
 - [x] stat
@@ -104,15 +104,15 @@ Legend:
 ### File Locking & Synchronization
 - [x] flock (with LOCK_SH, LOCK_EX, LOCK_UN, LOCK_NB flag decoding)
 - [x] fsync
-- [ ] fsync_nocancel
+- [x] fsync_nocancel
 - [x] fdatasync
-- [ ] msync
-- [ ] msync_nocancel
+- [x] msync
+- [x] msync_nocancel
 
 ### File Control & Special Operations
 - [x] ioctl (FIOCLEX, FIONCLEX, FIONREAD, TIOCGWINSZ, TIOCGETA)
 - [x] fcntl (F_GETFD, F_SETFD, F_GETFL, F_SETFL with flag decoding)
-- [ ] fcntl_nocancel
+- [x] fcntl_nocancel
 - [x] truncate
 - [x] ftruncate
 - [x] utimes
@@ -178,6 +178,7 @@ Legend:
 - [ ] mremap_encrypted
 - [ ] nfssvc
 - [x] mkstemp (tested via test_fd_ops)
+- [x] mkdtemp
 
 ---
 
@@ -309,14 +310,14 @@ Legend:
 
 ### Socket I/O
 - [x] sendto (with buffer and flags decoding)
-- [ ] sendto_nocancel
+- [x] sendto_nocancel
 - [x] sendmsg (with msghdr and iovec decoding)
-- [ ] sendmsg_nocancel
+- [x] sendmsg_nocancel
 - [ ] sendmsg_x
 - [x] recvfrom (with flags decoding)
-- [ ] recvfrom_nocancel
+- [x] recvfrom_nocancel
 - [x] recvmsg (with msghdr decoding)
-- [ ] recvmsg_nocancel
+- [x] recvmsg_nocancel
 - [ ] recvmsg_x
 
 ### Socket Control & Information
@@ -343,7 +344,7 @@ Legend:
 - [x] munmap
 - [x] mprotect (with PROT_* flag decoding)
 - [x] msync (with MS_* flag decoding)
-- [ ] __msync_nocancel
+- [x] __msync_nocancel
 - [x] madvise (with MADV_* constant decoding)
 - [ ] mincore
 - [ ] minherit
@@ -525,8 +526,8 @@ Legend:
 - [ ] adjtime
 - [ ] getitimer
 - [ ] setitimer
-- [ ] utimes
-- [ ] futimes
+- [x] utimes
+- [x] futimes
 - [ ] ntp_adjtime
 - [ ] ntp_gettime
 
@@ -561,18 +562,17 @@ Legend:
 - Security/MAC syscalls
 - System information queries (sysctl, sysctlbyname)
 - Thread management
-- Time/timer operations
+- Time/timer operations (gettimeofday, setitimer, etc.)
 - Process lifecycle (fork, execve, wait4)
-- All *_nocancel variants (close_nocancel, read_nocancel, etc.)
 - All *_extended variants (stat_extended, mkdir_extended, etc.)
 - Directory reading (getdirentries, getdirentries64)
-- Extended attributes (getxattr, setxattr, etc.)
-- Mount operations (mount, unmount, statfs)
+- Some guarded file descriptors (guarded_open_np, etc.)
+- Protected/extended open variants (open_dprotected_np, etc.)
 
-### Priority Test Candidates
+### Priority Test Candidates (Remaining)
 1. **Process**: fork, execve, wait4, getpid, getuid/geteuid (high-priority fundamentals)
 2. **Kqueue**: kqueue, kevent (modern macOS event notification)
 3. **Signal**: sigaction, sigprocmask, kill (important for process control)
 4. **Extended I/O**: preadv, pwritev (iovec variants of pread/pwrite)
 5. **Time**: gettimeofday, setitimer, getitimer (commonly used in profiling)
-6. **Extended Attributes**: getxattr, setxattr (macOS-specific metadata)
+6. **Directory reading**: getdirentries64 (commonly used directory iteration)
