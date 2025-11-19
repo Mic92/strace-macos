@@ -24,6 +24,7 @@ int mode_file_utilities(int argc, char *argv[]);
 int mode_memory(int argc, char *argv[]);
 int mode_network(int argc, char *argv[]);
 int mode_network_loop(int argc, char *argv[]);
+int mode_process_identity(int argc, char *argv[]);
 int mode_long_running(int argc, char *argv[]);
 int mode_fail(int argc, char *argv[]);
 int mode_default(int argc, char *argv[]);
@@ -43,6 +44,8 @@ static const test_mode_t modes[] = {
     {"--network", mode_network, "Perform basic network operations"},
     {"--network-loop", mode_network_loop,
      "Loop network operations for attach testing"},
+    {"--process-identity", mode_process_identity,
+     "Process identity ops (getpid/getuid/getgid/setpgid/setsid/getgroups)"},
     {"--long-running", mode_long_running,
      "Long-running process for attach testing"},
     {"--fail", mode_fail, "Exit with non-zero status"},

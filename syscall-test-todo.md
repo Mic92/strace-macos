@@ -197,26 +197,26 @@ Legend:
 - [ ] waitid_nocancel
 
 ### Process Identity
-- [ ] getpid
-- [ ] getppid
-- [ ] getpgrp
-- [ ] getpgid
-- [ ] setpgid
-- [ ] getsid
-- [ ] setsid
-- [ ] getuid
-- [ ] geteuid
-- [ ] getgid
-- [ ] getegid
-- [ ] setuid
-- [ ] seteuid
-- [ ] setgid
-- [ ] setegid
-- [ ] setreuid
-- [ ] setregid
-- [ ] getgroups
-- [ ] setgroups
-- [ ] initgroups
+- [x] getpid
+- [x] getppid
+- [x] getpgrp
+- [x] getpgid
+- [x] setpgid
+- [x] getsid
+- [x] setsid
+- [x] getuid
+- [x] geteuid
+- [x] getgid
+- [x] getegid
+- [x] setuid
+- [x] seteuid
+- [x] setgid
+- [x] setegid
+- [x] setreuid
+- [x] setregid
+- [x] getgroups
+- [x] setgroups
+- [x] initgroups (with username string decoding)
 
 ### Process Priority & Resources
 - [ ] getpriority
