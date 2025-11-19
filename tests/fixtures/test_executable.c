@@ -10,6 +10,7 @@
 #include "mode_memory.h"
 #include "mode_misc.h"
 #include "mode_network.h"
+#include "mode_process_identity.h"
 #include "modes.h"
 #include <string.h>
 
