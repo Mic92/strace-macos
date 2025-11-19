@@ -2,7 +2,8 @@
  * Process identity operations mode
  * Tests: getpid, getppid, getpgrp, getpgid, setpgid, getsid, setsid,
  *        getuid, geteuid, getgid, getegid, setuid, seteuid, setgid, setegid,
- *        setreuid, setregid, getgroups, setgroups, initgroups
+ *        setreuid, setregid, getgroups, setgroups, initgroups,
+ *        getlogin, setlogin, issetugid
  */
 
 #ifndef MODE_PROCESS_IDENTITY_H
@@ -228,6 +229,37 @@ int mode_process_identity(int argc, char *argv[]) {
   if (initgroups("nonexistent_user_12345", gid) < 0) {
     /* Expected to fail */
   }
+
+  /* === LOGIN NAME TESTS === */
+
+  /* Test getlogin() - get login name
+   * Returns the login name of the user associated with the session */
+  char login_buf[256];
+  char *login_name = getlogin();
+  if (login_name != NULL) {
+    /* getlogin() succeeded */
+  }
+
+  /* Test getlogin_r() - reentrant version
+   * Gets login name into provided buffer */
+  if (getlogin_r(login_buf, sizeof(login_buf)) == 0) {
+    /* Successfully got login name */
+  }
+
+  /* Test setlogin() - set login name
+   * This will fail unless we're root, but tests the syscall */
+  if (setlogin("testuser") < 0) {
+    /* Expected to fail if not root */
+  }
+
+  /* === SETUID PROGRAM TESTS === */
+
+  /* Test issetugid() - check if process was tainted by setuid/setgid
+   * Returns 1 if the process was made setuid/setgid as result of execve,
+   * or if it has changed any of its UIDs/GIDs since it began execution.
+   * This is important for security-sensitive operations. */
+  int is_tainted = issetugid();
+  (void)is_tainted; /* Use the value to avoid warnings */
 
   return 0;
 }

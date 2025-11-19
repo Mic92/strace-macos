@@ -249,9 +249,9 @@ Legend:
 - [ ] settid_with_pid
 
 ### Login & Session
-- [ ] getlogin
-- [ ] setlogin
-- [ ] issetugid
+- [x] getlogin (with buffer and size decoding)
+- [x] setlogin (with string decoding)
+- [x] issetugid (returns 0 or 1 for setuid/setgid taint check)
 
 ### Semaphore Operations (POSIX)
 - [ ] sem_wait

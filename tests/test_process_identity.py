@@ -10,6 +10,8 @@ Tests coverage for:
 - setreuid, setregid (set real and effective IDs)
 - getgroups, setgroups (supplementary groups)
 - initgroups (initialize group access list)
+- getlogin, setlogin (login name)
+- issetugid (setuid/setgid taint check)
 """
 
 from __future__ import annotations
@@ -103,14 +105,17 @@ class TestProcessIdentity(unittest.TestCase):
             "getgroups",
             "setgroups",
             "initgroups",
+            "getlogin",
+            "setlogin",
+            "issetugid",
         }
 
         captured = expected_syscalls & set(syscall_names)
         missing = expected_syscalls - set(syscall_names)
 
         # We should capture all of these
-        assert len(captured) >= 19, (
-            f"Should capture at least 19 process identity syscalls, got {len(captured)}.\n"
+        assert len(captured) >= 22, (
+            f"Should capture at least 22 process identity syscalls, got {len(captured)}.\n"
             f"Captured: {sorted(captured)}\n"
             f"Missing: {sorted(missing)}"
         )
@@ -156,6 +161,7 @@ class TestProcessIdentity(unittest.TestCase):
             "getgid",
             "getegid",
             "setsid",
+            "issetugid",
         ]:
             calls = [sc for sc in self.syscalls if sc.get("syscall") == syscall_name]
             for call in calls:
@@ -164,7 +170,15 @@ class TestProcessIdentity(unittest.TestCase):
                 )
 
         # Single-argument syscalls
-        for syscall_name in ["getpgid", "getsid", "setuid", "seteuid", "setgid", "setegid"]:
+        for syscall_name in [
+            "getpgid",
+            "getsid",
+            "setuid",
+            "seteuid",
+            "setgid",
+            "setegid",
+            "setlogin",
+        ]:
             calls = [sc for sc in self.syscalls if sc.get("syscall") == syscall_name]
             for call in calls:
                 assert len(call["args"]) == 1, (
@@ -172,7 +186,14 @@ class TestProcessIdentity(unittest.TestCase):
                 )
 
         # Two-argument syscalls
-        for syscall_name in ["setpgid", "setreuid", "setregid", "getgroups", "setgroups"]:
+        for syscall_name in [
+            "setpgid",
+            "setreuid",
+            "setregid",
+            "getgroups",
+            "setgroups",
+            "getlogin",
+        ]:
             calls = [sc for sc in self.syscalls if sc.get("syscall") == syscall_name]
             for call in calls:
                 assert len(call["args"]) == 2, (
@@ -183,6 +204,42 @@ class TestProcessIdentity(unittest.TestCase):
         initgroups_calls = [sc for sc in self.syscalls if sc.get("syscall") == "initgroups"]
         for call in initgroups_calls:
             assert len(call["args"]) == 4, f"initgroups should have 4 args, got {len(call['args'])}"
+
+    def test_setlogin_string_decoding(self) -> None:
+        """Test that setlogin() properly decodes the string argument."""
+        setlogin_calls = [sc for sc in self.syscalls if sc.get("syscall") == "setlogin"]
+
+        # Should have at least one setlogin call
+        assert len(setlogin_calls) >= 1, (
+            f"Should have at least 1 setlogin call, got {len(setlogin_calls)}"
+        )
+
+        # Check that the string argument is properly decoded
+        for call in setlogin_calls:
+            assert len(call["args"]) == 1, f"setlogin should have 1 arg, got {len(call['args'])}"
+
+            # First arg should be the username string
+            username = call["args"][0]
+            assert isinstance(username, str), (
+                f"setlogin name should be string, got {type(username)}"
+            )
+            assert username == "testuser", f"setlogin name should be 'testuser', got '{username}'"
+
+    def test_issetugid_return_value(self) -> None:
+        """Test that issetugid() returns valid boolean-ish values."""
+        issetugid_calls = [sc for sc in self.syscalls if sc.get("syscall") == "issetugid"]
+
+        # Should have at least one issetugid call
+        assert len(issetugid_calls) >= 1, (
+            f"Should have at least 1 issetugid call, got {len(issetugid_calls)}"
+        )
+
+        # Check return values are 0 or 1
+        for call in issetugid_calls:
+            assert len(call["args"]) == 0, f"issetugid should have 0 args, got {len(call['args'])}"
+            ret = call.get("return")
+            assert ret is not None, "issetugid should have a return value"
+            assert ret in [0, 1], f"issetugid should return 0 or 1, got {ret}"
 
 
 if __name__ == "__main__":
