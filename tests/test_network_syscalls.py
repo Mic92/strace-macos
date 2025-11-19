@@ -6,59 +6,33 @@ This test verifies that the --network mode exercises most socket-related syscall
 
 from __future__ import annotations
 
-import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "fixtures"))
-import helpers  # type: ignore[import-not-found]
-from compile import get_test_executable  # type: ignore[import-not-found]
+import syscall_test_helpers as sth  # type: ignore[import-not-found]
 
 
 class TestNetworkSyscalls(unittest.TestCase):
     """Test network syscall coverage using the test executable's --network mode."""
 
-    def setUp(self) -> None:
-        """Set up test fixtures."""
-        self.test_executable = get_test_executable()
-        self.python_path = "/usr/bin/python3"  # System Python for LLDB
-        self.strace_module = str(Path(__file__).parent.parent)
+    exit_code: int
+    syscalls: list[dict]
 
-    def run_strace(self, args: list[str]) -> int:
-        """Run strace and return exit code."""
-        cmd = [self.python_path, "-m", "strace_macos", *args]
-        result = subprocess.run(
-            cmd,
-            check=False,
-            cwd=self.strace_module,
-            capture_output=True,
-            text=True,
-        )
-        return result.returncode
+    @classmethod
+    def setUpClass(cls) -> None:
+        """Run the test executable once and capture syscalls for all tests."""
+        cls.exit_code, cls.syscalls = sth.run_strace_for_mode("--network", Path(__file__))
+
+    def test_executable_exits_successfully(self) -> None:
+        """Test that the executable runs without errors."""
+        assert self.exit_code == 0, f"Test executable should exit with 0, got {self.exit_code}"
 
     def test_network_syscall_coverage(self) -> None:  # noqa: PLR0915
-        """Test that all expected network syscalls are captured."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            output_file = Path(f.name)
+        """Test that all expected network syscalls are captured and decoded."""
 
-        try:
-            exit_code = self.run_strace(
-                ["--json", "-o", str(output_file), str(self.test_executable), "--network"]
-            )
-
-            assert exit_code == 0, f"strace should exit with code 0, got {exit_code}"
-            assert output_file.exists(), "Output file should be created"
-
-            # Parse JSON Lines output
-            syscalls = helpers.json_lines(output_file)
-            syscall_names = [sc.get("syscall") for sc in syscalls]
-        finally:
-            if output_file.exists():
-                output_file.unlink()
-
-        # Expected network syscalls - we capture 14 out of 15 reliably
+        # Expected network syscalls - we capture 12+ out of 15 reliably
         expected_syscalls = {
             "socketpair",
             "socket",
@@ -77,64 +51,44 @@ class TestNetworkSyscalls(unittest.TestCase):
             "setsockopt",  # May not always be captured due to timing/inlining
         }
 
-        captured_network_syscalls = expected_syscalls & set(syscall_names)
-        missing_syscalls = expected_syscalls - set(syscall_names)
-
-        # We should capture at least 12 out of 14 expected syscalls
-        assert len(captured_network_syscalls) >= 12, (
-            f"Should capture at least 12 network syscalls, "
-            f"got {len(captured_network_syscalls)}.\n"
-            f"Captured: {sorted(captured_network_syscalls)}\n"
-            f"Missing: {sorted(missing_syscalls)}"
-        )
+        # We should capture at least 12 out of 15 expected syscalls
+        sth.assert_syscall_coverage(self.syscalls, expected_syscalls, 12, "network syscalls")
 
         # Verify symbolic decoders are working correctly
         # Test socketpair(domain, type, protocol, sv)
-        socketpair_calls = [sc for sc in syscalls if sc.get("syscall") == "socketpair"]
-        assert len(socketpair_calls) > 0, "Should have socketpair calls"
-        sp = socketpair_calls[0]
-        assert "AF_UNIX" in sp["args"][0], "socketpair should decode AF_UNIX"
-        assert "SOCK_STREAM" in sp["args"][1], "socketpair should decode SOCK_STREAM"
+        socketpair_calls = sth.filter_syscalls(self.syscalls, "socketpair")
+        sth.assert_min_call_count(socketpair_calls, 1, "socketpair")
+        sth.assert_symbolic_value(socketpair_calls[0], 0, "AF_UNIX", "socketpair domain")
+        sth.assert_symbolic_value(socketpair_calls[0], 1, "SOCK_STREAM", "socketpair type")
 
         # Test socket(domain, type, protocol)
-        socket_calls = [sc for sc in syscalls if sc.get("syscall") == "socket"]
-        assert len(socket_calls) > 0, "Should have socket calls"
-        sock = socket_calls[0]
-        assert "AF_" in sock["args"][0], "socket should decode AF_* domain"
-        assert "SOCK_" in sock["args"][1], "socket should decode SOCK_* type"
+        socket_calls = sth.filter_syscalls(self.syscalls, "socket")
+        sth.assert_min_call_count(socket_calls, 1, "socket")
+        sth.assert_symbolic_value(socket_calls[0], 0, "AF_", "socket domain")
+        sth.assert_symbolic_value(socket_calls[0], 1, "SOCK_", "socket type")
 
         # Test shutdown(sockfd, how)
-        shutdown_calls = [sc for sc in syscalls if sc.get("syscall") == "shutdown"]
-        assert len(shutdown_calls) > 0, "Should have shutdown calls"
-        shutdown = shutdown_calls[0]
-        assert "SHUT_" in shutdown["args"][1], "shutdown should decode SHUT_* flag"
+        shutdown_calls = sth.filter_syscalls(self.syscalls, "shutdown")
+        sth.assert_min_call_count(shutdown_calls, 1, "shutdown")
+        sth.assert_symbolic_value(shutdown_calls[0], 1, "SHUT_", "shutdown how")
 
         # Test getsockopt(sockfd, level, optname, optval, optlen)
-        getsockopt_calls = [sc for sc in syscalls if sc.get("syscall") == "getsockopt"]
-        assert len(getsockopt_calls) > 0, "Should have getsockopt calls"
-        getsockopt = getsockopt_calls[0]
-        assert getsockopt["args"][1] == "SOL_SOCKET", "getsockopt should decode SOL_SOCKET"
-        assert "SO_" in getsockopt["args"][2], "getsockopt should decode SO_* option name"
+        getsockopt_calls = sth.filter_syscalls(self.syscalls, "getsockopt")
+        sth.assert_min_call_count(getsockopt_calls, 1, "getsockopt")
+        sth.assert_symbolic_value(getsockopt_calls[0], 1, "SOL_SOCKET", "getsockopt level")
+        sth.assert_symbolic_value(getsockopt_calls[0], 2, "SO_", "getsockopt optname")
 
         # Test setsockopt(sockfd, level, optname, optval, optlen)
-        setsockopt_calls = [sc for sc in syscalls if sc.get("syscall") == "setsockopt"]
-        assert len(setsockopt_calls) > 0, "Should have setsockopt calls"
-        setsockopt = setsockopt_calls[0]
-        assert setsockopt["args"][1] == "SOL_SOCKET", "setsockopt should decode SOL_SOCKET"
-        assert setsockopt["args"][2] == "SO_KEEPALIVE", "setsockopt should decode SO_KEEPALIVE"
+        setsockopt_calls = sth.filter_syscalls(self.syscalls, "setsockopt")
+        sth.assert_min_call_count(setsockopt_calls, 1, "setsockopt")
+        sth.assert_symbolic_value(setsockopt_calls[0], 1, "SOL_SOCKET", "setsockopt level")
+        sth.assert_symbolic_value(setsockopt_calls[0], 2, "SO_KEEPALIVE", "setsockopt optname")
 
         # Test bind: should decode sockaddr structure
         # Expected output: bind(3, {sa_family=AF_UNIX, sun_path="/tmp/strace_test.12345"}, 106)
-        bind_calls = [sc for sc in syscalls if sc.get("syscall") == "bind"]
+        bind_calls = sth.filter_syscalls(self.syscalls, "bind")
         if bind_calls:
-            bind_call = bind_calls[0]
-            addr_arg = bind_call["args"][1]
-            assert isinstance(addr_arg, dict), f"bind addr should be decoded struct, got {addr_arg}"
-            assert "output" in addr_arg, (
-                f"bind addr should have 'output' key for StructArg, got {addr_arg}"
-            )
-            addr_fields = addr_arg["output"]
-            assert "sa_family" in addr_fields, f"bind should show sa_family, got {addr_fields}"
+            addr_fields = sth.assert_struct_field(bind_calls[0], 1, "sa_family", "bind")
             # For Unix sockets, should show sun_path
             assert "sun_path" in addr_fields or "AF_UNIX" in str(addr_fields), (
                 f"bind should decode sockaddr, got {addr_fields}"
@@ -142,38 +96,31 @@ class TestNetworkSyscalls(unittest.TestCase):
 
         # Test sendto: should decode buffer contents and flags
         # Expected output: sendto(3, "test", 4, 0, NULL, 0)
-        sendto_calls = [sc for sc in syscalls if sc.get("syscall") == "sendto"]
+        sendto_calls = sth.filter_syscalls(self.syscalls, "sendto")
         if sendto_calls:
-            sendto_call = sendto_calls[0]
-            buf_arg = sendto_call["args"][1]
+            buf_arg = sendto_calls[0]["args"][1]
             assert '"' in buf_arg, f"sendto buffer should be decoded as string, got {buf_arg}"
             assert "test" in buf_arg, f"sendto buffer should contain 'test', got {buf_arg}"
 
             # Flags should already be decoded with current decode_msg_flags
-            flags_arg = sendto_call["args"][3]
+            flags_arg = sendto_calls[0]["args"][3]
             assert flags_arg == "0" or "MSG_" in flags_arg, (
                 f"sendto flags should be decoded, got {flags_arg}"
             )
 
         # Test recvfrom: should decode buffer contents and flags
-        recvfrom_calls = [sc for sc in syscalls if sc.get("syscall") == "recvfrom"]
+        recvfrom_calls = sth.filter_syscalls(self.syscalls, "recvfrom")
         if recvfrom_calls:
-            recvfrom_call = recvfrom_calls[0]
-            flags_arg = recvfrom_call["args"][3]
+            flags_arg = recvfrom_calls[0]["args"][3]
             assert flags_arg == "0" or "MSG_" in flags_arg, (
                 f"recvfrom flags should be decoded, got {flags_arg}"
             )
 
         # Test sendmsg: should decode msghdr structure
         # Expected output: sendmsg(3, {msg_name=NULL, msg_iov=[...], ...}, 0)
-        sendmsg_calls = [sc for sc in syscalls if sc.get("syscall") == "sendmsg"]
+        sendmsg_calls = sth.filter_syscalls(self.syscalls, "sendmsg")
         if sendmsg_calls:
-            sendmsg_call = sendmsg_calls[0]
-            msg_arg = sendmsg_call["args"][1]
-            assert isinstance(msg_arg, dict), f"sendmsg msg should be decoded struct, got {msg_arg}"
-            assert "output" in msg_arg, f"sendmsg should have 'output' key, got {msg_arg}"
-            msg_fields = msg_arg["output"]
-            assert "msg_iov" in msg_fields, f"sendmsg should show msg_iov, got {msg_fields}"
+            msg_fields = sth.assert_struct_field(sendmsg_calls[0], 1, "msg_iov", "sendmsg")
             # msg_iov should be a list of iovec dicts
             assert isinstance(msg_fields["msg_iov"], list), (
                 f"msg_iov should be a list, got {type(msg_fields['msg_iov'])}"
@@ -192,34 +139,19 @@ class TestNetworkSyscalls(unittest.TestCase):
             assert iov["iov_len"] == 3, f"iovec length should be 3, got {iov['iov_len']}"
 
         # Test getsockname: should decode sockaddr
-        getsockname_calls = [sc for sc in syscalls if sc.get("syscall") == "getsockname"]
+        getsockname_calls = sth.filter_syscalls(self.syscalls, "getsockname")
         if getsockname_calls:
-            getsockname_call = getsockname_calls[0]
-            addr_arg = getsockname_call["args"][1]
-            assert isinstance(addr_arg, dict), (
-                f"getsockname addr should be decoded struct, got {addr_arg}"
-            )
-            assert "output" in addr_arg, f"getsockname should have 'output' key, got {addr_arg}"
+            sth.assert_struct_field(getsockname_calls[0], 1, "sa_family", "getsockname")
 
         # Test getpeername: should decode sockaddr
-        getpeername_calls = [sc for sc in syscalls if sc.get("syscall") == "getpeername"]
+        getpeername_calls = sth.filter_syscalls(self.syscalls, "getpeername")
         if getpeername_calls:
-            getpeername_call = getpeername_calls[0]
-            addr_arg = getpeername_call["args"][1]
-            assert isinstance(addr_arg, dict), (
-                f"getpeername addr should be decoded struct, got {addr_arg}"
-            )
-            assert "output" in addr_arg, f"getpeername should have 'output' key, got {addr_arg}"
+            sth.assert_struct_field(getpeername_calls[0], 1, "sa_family", "getpeername")
 
         # Test accept: should decode sockaddr
-        accept_calls = [sc for sc in syscalls if sc.get("syscall") == "accept"]
+        accept_calls = sth.filter_syscalls(self.syscalls, "accept")
         if accept_calls:
-            accept_call = accept_calls[0]
-            addr_arg = accept_call["args"][1]
-            assert isinstance(addr_arg, dict), (
-                f"accept addr should be decoded struct, got {addr_arg}"
-            )
-            assert "output" in addr_arg, f"accept should have 'output' key, got {addr_arg}"
+            sth.assert_struct_field(accept_calls[0], 1, "sa_family", "accept")
 
 
 if __name__ == "__main__":

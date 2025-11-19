@@ -15,64 +15,24 @@ Tests coverage for:
 
 from __future__ import annotations
 
-import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "fixtures"))
-import helpers  # type: ignore[import-not-found]
-from compile import get_test_executable  # type: ignore[import-not-found]
+import syscall_test_helpers as sth  # type: ignore[import-not-found]
 
 
 class TestMemorySyscalls(unittest.TestCase):
     """Test memory management syscall decoding."""
 
-    test_executable: Path
-    python_path: str
-    strace_module: str
     exit_code: int
     syscalls: list[dict]
 
     @classmethod
     def setUpClass(cls) -> None:
         """Run the test executable once and capture syscalls for all tests."""
-        cls.test_executable = get_test_executable()
-        cls.python_path = "/usr/bin/python3"
-        cls.strace_module = str(Path(__file__).parent.parent)
-
-        # Run strace once and capture output
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            output_file = Path(f.name)
-
-        try:
-            cmd = [
-                cls.python_path,
-                "-m",
-                "strace_macos",
-                "--json",
-                "-o",
-                str(output_file),
-                str(cls.test_executable),
-                "--memory",
-            ]
-            result = subprocess.run(
-                cmd,
-                check=False,
-                cwd=cls.strace_module,
-                capture_output=True,
-                text=True,
-            )
-
-            cls.exit_code = result.returncode
-            if output_file.exists():
-                cls.syscalls = helpers.json_lines(output_file)
-            else:
-                cls.syscalls = []
-        finally:
-            if output_file.exists():
-                output_file.unlink()
+        cls.exit_code, cls.syscalls = sth.run_strace_for_mode("--memory", Path(__file__))
 
     def test_executable_exits_successfully(self) -> None:
         """Test that the executable runs without errors."""
@@ -80,8 +40,6 @@ class TestMemorySyscalls(unittest.TestCase):
 
     def test_memory_coverage(self) -> None:
         """Test that all expected memory management syscalls are captured."""
-        syscall_names = [sc.get("syscall") for sc in self.syscalls]
-
         # Expected syscalls from our test mode (all should be traced even if they fail)
         expected_syscalls = {
             "mmap",
@@ -97,38 +55,30 @@ class TestMemorySyscalls(unittest.TestCase):
             "munlockall",
         }
 
-        captured = expected_syscalls & set(syscall_names)
-        missing = expected_syscalls - set(syscall_names)
-
         # We should capture all expected syscalls
-        assert len(captured) == len(expected_syscalls), (
-            f"Should capture all {len(expected_syscalls)} memory syscalls, got {len(captured)}.\n"
-            f"Captured: {sorted(captured)}\n"
-            f"Missing: {sorted(missing)}"
+        sth.assert_syscall_coverage(
+            self.syscalls, expected_syscalls, len(expected_syscalls), "memory syscalls"
         )
 
         # Basic argument count checks
-        mmap_calls = [sc for sc in self.syscalls if sc.get("syscall") == "mmap"]
-        assert len(mmap_calls) >= 5, f"Expected at least 5 mmap calls, got {len(mmap_calls)}"
-        assert len(mmap_calls[0]["args"]) == 6, "mmap should have 6 args"
+        mmap_calls = sth.filter_syscalls(self.syscalls, "mmap")
+        sth.assert_min_call_count(mmap_calls, 5, "mmap")
+        sth.assert_arg_count(mmap_calls[0], 6, "mmap")
 
-        munmap_calls = [sc for sc in self.syscalls if sc.get("syscall") == "munmap"]
-        assert len(munmap_calls) >= 5, f"Expected at least 5 munmap calls, got {len(munmap_calls)}"
-        assert len(munmap_calls[0]["args"]) == 2, "munmap should have 2 args"
+        munmap_calls = sth.filter_syscalls(self.syscalls, "munmap")
+        sth.assert_min_call_count(munmap_calls, 5, "munmap")
+        sth.assert_arg_count(munmap_calls[0], 2, "munmap")
 
-        mlock_calls = [sc for sc in self.syscalls if sc.get("syscall") == "mlock"]
-        munlock_calls = [sc for sc in self.syscalls if sc.get("syscall") == "munlock"]
-        assert len(mlock_calls) >= 1, "Expected at least 1 mlock call"
-        assert len(munlock_calls) >= 1, "Expected at least 1 munlock call"
+        mlock_calls = sth.filter_syscalls(self.syscalls, "mlock")
+        munlock_calls = sth.filter_syscalls(self.syscalls, "munlock")
+        sth.assert_min_call_count(mlock_calls, 1, "mlock")
+        sth.assert_min_call_count(munlock_calls, 1, "munlock")
 
     def test_mmap_protection_flags(self) -> None:
         """Test that various PROT_* flags are properly decoded."""
-        mmap_calls = [sc for sc in self.syscalls if sc.get("syscall") == "mmap"]
+        mmap_calls = sth.filter_syscalls(self.syscalls, "mmap")
 
-        prot_flags_found = set()
-        for call in mmap_calls:
-            prot = str(call["args"][2])
-            prot_flags_found.add(prot)
+        prot_flags_found = sth.collect_flags_from_calls(mmap_calls, 2)
 
         # Should see various protection combinations
         # At minimum: PROT_READ|PROT_WRITE, PROT_NONE, PROT_READ|PROT_WRITE|PROT_EXEC
@@ -141,35 +91,22 @@ class TestMemorySyscalls(unittest.TestCase):
 
     def test_mmap_map_flags(self) -> None:
         """Test that various MAP_* flags are properly decoded."""
-        mmap_calls = [sc for sc in self.syscalls if sc.get("syscall") == "mmap"]
-
-        map_flags_found = set()
-        for call in mmap_calls:
-            flags = str(call["args"][3])
-            map_flags_found.add(flags)
+        mmap_calls = sth.filter_syscalls(self.syscalls, "mmap")
 
         # Should see MAP_PRIVATE, MAP_ANON at minimum
-        assert any("MAP_PRIVATE" in f for f in map_flags_found), (
-            f"Should have MAP_PRIVATE, got {map_flags_found}"
-        )
-        assert any("MAP_ANON" in f for f in map_flags_found), (
-            f"Should have MAP_ANON, got {map_flags_found}"
-        )
+        sth.assert_flag_present(mmap_calls, 3, "MAP_PRIVATE", "mmap")
+        sth.assert_flag_present(mmap_calls, 3, "MAP_ANON", "mmap")
         # Should also see MAP_SHARED
-        assert any("MAP_SHARED" in f for f in map_flags_found), (
-            f"Should have MAP_SHARED, got {map_flags_found}"
-        )
+        sth.assert_flag_present(mmap_calls, 3, "MAP_SHARED", "mmap")
 
     def test_mprotect_protection_flags(self) -> None:
         """Test mprotect() syscall with protection flag decoding."""
-        mprotect_calls = [sc for sc in self.syscalls if sc.get("syscall") == "mprotect"]
+        mprotect_calls = sth.filter_syscalls(self.syscalls, "mprotect")
 
-        assert len(mprotect_calls) >= 4, (
-            f"Expected at least 4 mprotect calls, got {len(mprotect_calls)}"
-        )
+        sth.assert_min_call_count(mprotect_calls, 4, "mprotect")
 
         # Check we see different protection levels
-        prot_values = {str(call["args"][2]) for call in mprotect_calls}
+        prot_values = sth.collect_flags_from_calls(mprotect_calls, 2)
         assert "PROT_READ" in prot_values, f"Should have PROT_READ, got {prot_values}"
         assert "PROT_NONE" in prot_values, f"Should have PROT_NONE, got {prot_values}"
         assert any("PROT_READ" in p and "PROT_WRITE" in p for p in prot_values), (
@@ -178,14 +115,12 @@ class TestMemorySyscalls(unittest.TestCase):
 
     def test_madvise_advice_constants(self) -> None:
         """Test madvise() syscall with advice constant decoding."""
-        madvise_calls = [sc for sc in self.syscalls if sc.get("syscall") == "madvise"]
+        madvise_calls = sth.filter_syscalls(self.syscalls, "madvise")
 
-        assert len(madvise_calls) >= 5, (
-            f"Expected at least 5 madvise calls, got {len(madvise_calls)}"
-        )
+        sth.assert_min_call_count(madvise_calls, 5, "madvise")
 
         # Check we see different advice values
-        advice_values = {str(call["args"][2]) for call in madvise_calls}
+        advice_values = sth.collect_flags_from_calls(madvise_calls, 2)
         expected_advice = {
             "MADV_NORMAL",
             "MADV_RANDOM",
@@ -200,12 +135,12 @@ class TestMemorySyscalls(unittest.TestCase):
 
     def test_msync_flags(self) -> None:
         """Test msync() syscall with flag decoding."""
-        msync_calls = [sc for sc in self.syscalls if sc.get("syscall") == "msync"]
+        msync_calls = sth.filter_syscalls(self.syscalls, "msync")
 
-        assert len(msync_calls) >= 3, f"Expected at least 3 msync calls, got {len(msync_calls)}"
+        sth.assert_min_call_count(msync_calls, 3, "msync")
 
         # Check we see different flag values
-        flag_values = {str(call["args"][2]) for call in msync_calls}
+        flag_values = sth.collect_flags_from_calls(msync_calls, 2)
         expected_flags = {"MS_SYNC", "MS_ASYNC", "MS_INVALIDATE"}
         found_flags = expected_flags & flag_values
         assert len(found_flags) >= 2, (
@@ -214,47 +149,33 @@ class TestMemorySyscalls(unittest.TestCase):
 
     def test_minherit_constants(self) -> None:
         """Test minherit() syscall with VM_INHERIT constant decoding."""
-        minherit_calls = [sc for sc in self.syscalls if sc.get("syscall") == "minherit"]
+        minherit_calls = sth.filter_syscalls(self.syscalls, "minherit")
 
-        assert len(minherit_calls) >= 3, (
-            f"Expected at least 3 minherit calls, got {len(minherit_calls)}"
-        )
+        sth.assert_min_call_count(minherit_calls, 3, "minherit")
 
         # Check we see different inheritance values
-        inherit_values = {str(call["args"][2]) for call in minherit_calls}
+        inherit_values = sth.collect_flags_from_calls(minherit_calls, 2)
         expected_values = {"VM_INHERIT_SHARE", "VM_INHERIT_COPY", "VM_INHERIT_NONE"}
         found_values = expected_values & inherit_values
         assert len(found_values) >= 3, f"Should have all 3 VM_INHERIT values, got {inherit_values}"
 
     def test_mlockall_munlockall(self) -> None:
         """Test mlockall() and munlockall() syscalls."""
-        mlockall_calls = [sc for sc in self.syscalls if sc.get("syscall") == "mlockall"]
-        munlockall_calls = [sc for sc in self.syscalls if sc.get("syscall") == "munlockall"]
+        mlockall_calls = sth.filter_syscalls(self.syscalls, "mlockall")
+        munlockall_calls = sth.filter_syscalls(self.syscalls, "munlockall")
 
         # Should have multiple mlockall calls with different flags
-        assert len(mlockall_calls) >= 3, (
-            f"Expected at least 3 mlockall calls, got {len(mlockall_calls)}"
-        )
+        sth.assert_min_call_count(mlockall_calls, 3, "mlockall")
 
         # Check for MCL_CURRENT and MCL_FUTURE flags
-        flags_seen = set()
-        for call in mlockall_calls:
-            assert len(call["args"]) == 1, f"mlockall should have 1 arg, got {len(call['args'])}"
-            flag_arg = str(call["args"][0])
-            flags_seen.add(flag_arg)
+        sth.assert_arg_count(mlockall_calls[0], 1, "mlockall")
 
         # Should see both MCL_CURRENT and MCL_FUTURE
-        assert any("MCL_CURRENT" in f for f in flags_seen), (
-            f"Should have MCL_CURRENT flag, got flags: {flags_seen}"
-        )
-        assert any("MCL_FUTURE" in f for f in flags_seen), (
-            f"Should have MCL_FUTURE flag, got flags: {flags_seen}"
-        )
+        sth.assert_flag_present(mlockall_calls, 0, "MCL_CURRENT", "mlockall")
+        sth.assert_flag_present(mlockall_calls, 0, "MCL_FUTURE", "mlockall")
 
         # Should have matching munlockall calls
-        assert len(munlockall_calls) >= 3, (
-            f"Expected at least 3 munlockall calls, got {len(munlockall_calls)}"
-        )
+        sth.assert_min_call_count(munlockall_calls, 3, "munlockall")
 
 
 if __name__ == "__main__":

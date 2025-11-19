@@ -16,64 +16,24 @@ Tests coverage for:
 
 from __future__ import annotations
 
-import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "fixtures"))
-import helpers  # type: ignore[import-not-found]
-from compile import get_test_executable  # type: ignore[import-not-found]
+import syscall_test_helpers as sth  # type: ignore[import-not-found]
 
 
 class TestProcessIdentity(unittest.TestCase):
     """Test process identity syscall decoding."""
 
-    test_executable: Path
-    python_path: str
-    strace_module: str
     exit_code: int
     syscalls: list[dict]
 
     @classmethod
     def setUpClass(cls) -> None:
         """Run the test executable once and capture syscalls for all tests."""
-        cls.test_executable = get_test_executable()
-        cls.python_path = "/usr/bin/python3"
-        cls.strace_module = str(Path(__file__).parent.parent)
-
-        # Run strace once and capture output
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            output_file = Path(f.name)
-
-        try:
-            cmd = [
-                cls.python_path,
-                "-m",
-                "strace_macos",
-                "--json",
-                "-o",
-                str(output_file),
-                str(cls.test_executable),
-                "--process-identity",
-            ]
-            result = subprocess.run(
-                cmd,
-                check=False,
-                cwd=cls.strace_module,
-                capture_output=True,
-                text=True,
-            )
-
-            cls.exit_code = result.returncode
-            if output_file.exists():
-                cls.syscalls = helpers.json_lines(output_file)
-            else:
-                cls.syscalls = []
-        finally:
-            if output_file.exists():
-                output_file.unlink()
+        cls.exit_code, cls.syscalls = sth.run_strace_for_mode("--process-identity", Path(__file__))
 
     def test_executable_exits_successfully(self) -> None:
         """Test that the executable runs without errors."""
@@ -81,8 +41,6 @@ class TestProcessIdentity(unittest.TestCase):
 
     def test_process_identity_coverage(self) -> None:
         """Test that expected process identity syscalls are captured."""
-        syscall_names = [sc.get("syscall") for sc in self.syscalls]
-
         # Expected syscalls from our test mode
         expected_syscalls = {
             "getpid",
@@ -110,36 +68,27 @@ class TestProcessIdentity(unittest.TestCase):
             "issetugid",
         }
 
-        captured = expected_syscalls & set(syscall_names)
-        missing = expected_syscalls - set(syscall_names)
-
-        # We should capture all of these
-        assert len(captured) >= 22, (
-            f"Should capture at least 22 process identity syscalls, got {len(captured)}.\n"
-            f"Captured: {sorted(captured)}\n"
-            f"Missing: {sorted(missing)}"
+        # We should capture at least 22 of these
+        sth.assert_syscall_coverage(
+            self.syscalls, expected_syscalls, 22, "process identity syscalls"
         )
 
     def test_initgroups_string_decoding(self) -> None:
         """Test that initgroups() properly decodes the username string argument."""
-        initgroups_calls = [sc for sc in self.syscalls if sc.get("syscall") == "initgroups"]
+        initgroups_calls = sth.filter_syscalls(self.syscalls, "initgroups")
 
         # Should have initgroups calls
-        assert len(initgroups_calls) >= 2, (
-            f"Should have at least 2 initgroups calls, got {len(initgroups_calls)}"
-        )
+        sth.assert_min_call_count(initgroups_calls, 2, "initgroups")
 
         # Check that at least one call has a valid username string decoded
         valid_username_found = False
         for call in initgroups_calls:
             # initgroups has 4 args on macOS: name, basegid, groups, ngroups
-            assert len(call["args"]) == 4, f"initgroups should have 4 args, got {len(call['args'])}"
+            sth.assert_arg_count(call, 4, "initgroups")
 
             # First arg should be username string (decoded from pointer)
+            sth.assert_arg_type(call, 0, str, "initgroups name")
             username = call["args"][0]
-            assert isinstance(username, str), (
-                f"initgroups name should be string, got {type(username)}"
-            )
 
             # At least one call should have a real username (not "nonexistent_user_12345")
             if username != "nonexistent_user_12345" and len(username) > 0:
@@ -163,11 +112,9 @@ class TestProcessIdentity(unittest.TestCase):
             "setsid",
             "issetugid",
         ]:
-            calls = [sc for sc in self.syscalls if sc.get("syscall") == syscall_name]
+            calls = sth.filter_syscalls(self.syscalls, syscall_name)
             for call in calls:
-                assert len(call["args"]) == 0, (
-                    f"{syscall_name} should have 0 args, got {len(call['args'])}"
-                )
+                sth.assert_arg_count(call, 0, syscall_name)
 
         # Single-argument syscalls
         for syscall_name in [
@@ -179,11 +126,9 @@ class TestProcessIdentity(unittest.TestCase):
             "setegid",
             "setlogin",
         ]:
-            calls = [sc for sc in self.syscalls if sc.get("syscall") == syscall_name]
+            calls = sth.filter_syscalls(self.syscalls, syscall_name)
             for call in calls:
-                assert len(call["args"]) == 1, (
-                    f"{syscall_name} should have 1 arg, got {len(call['args'])}"
-                )
+                sth.assert_arg_count(call, 1, syscall_name)
 
         # Two-argument syscalls
         for syscall_name in [
@@ -194,49 +139,41 @@ class TestProcessIdentity(unittest.TestCase):
             "setgroups",
             "getlogin",
         ]:
-            calls = [sc for sc in self.syscalls if sc.get("syscall") == syscall_name]
+            calls = sth.filter_syscalls(self.syscalls, syscall_name)
             for call in calls:
-                assert len(call["args"]) == 2, (
-                    f"{syscall_name} should have 2 args, got {len(call['args'])}"
-                )
+                sth.assert_arg_count(call, 2, syscall_name)
 
         # Four-argument syscall (initgroups)
-        initgroups_calls = [sc for sc in self.syscalls if sc.get("syscall") == "initgroups"]
+        initgroups_calls = sth.filter_syscalls(self.syscalls, "initgroups")
         for call in initgroups_calls:
-            assert len(call["args"]) == 4, f"initgroups should have 4 args, got {len(call['args'])}"
+            sth.assert_arg_count(call, 4, "initgroups")
 
     def test_setlogin_string_decoding(self) -> None:
         """Test that setlogin() properly decodes the string argument."""
-        setlogin_calls = [sc for sc in self.syscalls if sc.get("syscall") == "setlogin"]
+        setlogin_calls = sth.filter_syscalls(self.syscalls, "setlogin")
 
         # Should have at least one setlogin call
-        assert len(setlogin_calls) >= 1, (
-            f"Should have at least 1 setlogin call, got {len(setlogin_calls)}"
-        )
+        sth.assert_min_call_count(setlogin_calls, 1, "setlogin")
 
         # Check that the string argument is properly decoded
         for call in setlogin_calls:
-            assert len(call["args"]) == 1, f"setlogin should have 1 arg, got {len(call['args'])}"
+            sth.assert_arg_count(call, 1, "setlogin")
 
             # First arg should be the username string
+            sth.assert_arg_type(call, 0, str, "setlogin name")
             username = call["args"][0]
-            assert isinstance(username, str), (
-                f"setlogin name should be string, got {type(username)}"
-            )
             assert username == "testuser", f"setlogin name should be 'testuser', got '{username}'"
 
     def test_issetugid_return_value(self) -> None:
         """Test that issetugid() returns valid boolean-ish values."""
-        issetugid_calls = [sc for sc in self.syscalls if sc.get("syscall") == "issetugid"]
+        issetugid_calls = sth.filter_syscalls(self.syscalls, "issetugid")
 
         # Should have at least one issetugid call
-        assert len(issetugid_calls) >= 1, (
-            f"Should have at least 1 issetugid call, got {len(issetugid_calls)}"
-        )
+        sth.assert_min_call_count(issetugid_calls, 1, "issetugid")
 
         # Check return values are 0 or 1
         for call in issetugid_calls:
-            assert len(call["args"]) == 0, f"issetugid should have 0 args, got {len(call['args'])}"
+            sth.assert_arg_count(call, 0, "issetugid")
             ret = call.get("return")
             assert ret is not None, "issetugid should have a return value"
             assert ret in [0, 1], f"issetugid should return 0 or 1, got {ret}"

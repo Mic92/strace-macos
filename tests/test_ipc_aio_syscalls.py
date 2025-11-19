@@ -11,64 +11,24 @@ Tests coverage for:
 
 from __future__ import annotations
 
-import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "fixtures"))
-import helpers  # type: ignore[import-not-found]
-from compile import get_test_executable  # type: ignore[import-not-found]
+import syscall_test_helpers as sth  # type: ignore[import-not-found]
 
 
 class TestIPCAIOSyscalls(unittest.TestCase):
     """Test System V IPC and AIO syscall decoding."""
 
-    test_executable: Path
-    python_path: str
-    strace_module: str
     exit_code: int
     syscalls: list[dict]
 
     @classmethod
     def setUpClass(cls) -> None:
         """Run the test executable once and capture syscalls for all tests."""
-        cls.test_executable = get_test_executable()
-        cls.python_path = "/usr/bin/python3"
-        cls.strace_module = str(Path(__file__).parent.parent)
-
-        # Run strace once and capture output
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            output_file = Path(f.name)
-
-        try:
-            cmd = [
-                cls.python_path,
-                "-m",
-                "strace_macos",
-                "--json",
-                "-o",
-                str(output_file),
-                str(cls.test_executable),
-                "--ipc-aio",
-            ]
-            result = subprocess.run(
-                cmd,
-                check=False,
-                cwd=cls.strace_module,
-                capture_output=True,
-                text=True,
-            )
-
-            cls.exit_code = result.returncode
-            if output_file.exists():
-                cls.syscalls = helpers.json_lines(output_file)
-            else:
-                cls.syscalls = []
-        finally:
-            if output_file.exists():
-                output_file.unlink()
+        cls.exit_code, cls.syscalls = sth.run_strace_for_mode("--ipc-aio", Path(__file__))
 
     def test_executable_exits_successfully(self) -> None:
         """Test that the executable runs without errors."""
@@ -76,13 +36,6 @@ class TestIPCAIOSyscalls(unittest.TestCase):
 
     def test_ipc_aio_coverage(self) -> None:
         """Test that expected IPC and AIO syscalls are captured."""
-        syscall_names: list[str] = [
-            sc.get("syscall")  # type: ignore[misc]
-            for sc in self.syscalls
-            if sc.get("syscall")
-        ]
-
-        # Expected syscalls from our test mode
         expected_syscalls = {
             # Message queues
             "msgget",
@@ -106,47 +59,36 @@ class TestIPCAIOSyscalls(unittest.TestCase):
             "lio_listio",
         }
 
-        found_syscalls = expected_syscalls.intersection(syscall_names)
-        missing_syscalls = expected_syscalls - found_syscalls
-
-        assert len(missing_syscalls) == 0, (
-            f"Missing expected syscalls: {missing_syscalls}\n"
-            f"Found syscalls: {sorted(set(syscall_names))}"
+        sth.assert_syscall_coverage(
+            self.syscalls, expected_syscalls, len(expected_syscalls), "IPC/AIO syscalls"
         )
 
     # Message Queue Tests
     def test_msgget_with_ipc_flags(self) -> None:
         """Test msgget syscall with IPC_CREAT|IPC_EXCL flags."""
-        msgget_calls = [sc for sc in self.syscalls if sc.get("syscall") == "msgget"]
-        assert len(msgget_calls) > 0, "Should have msgget syscalls"
-
-        call = msgget_calls[0]
-        args = call.get("args", [])
-        assert len(args) == 2, "msgget should have 2 arguments"
-
-        # Second argument should be flags with IPC_CREAT|IPC_EXCL|mode
-        flags_arg = args[1]
-        assert "IPC_CREAT" in flags_arg, f"msgget flags should contain IPC_CREAT: {flags_arg}"
-        assert "IPC_EXCL" in flags_arg, f"msgget flags should contain IPC_EXCL: {flags_arg}"
+        msgget_calls = sth.filter_syscalls(self.syscalls, "msgget")
+        sth.assert_min_call_count(msgget_calls, 1, "msgget")
+        sth.assert_arg_count(msgget_calls[0], 2, "msgget")
+        sth.assert_symbolic_value(msgget_calls[0], 1, ["IPC_CREAT", "IPC_EXCL"], "msgget flags")
 
     def test_msgctl_commands(self) -> None:
         """Test msgctl syscall with different commands."""
-        msgctl_calls = [sc for sc in self.syscalls if sc.get("syscall") == "msgctl"]
-        assert len(msgctl_calls) >= 2, "Should have multiple msgctl calls"
+        msgctl_calls = sth.filter_syscalls(self.syscalls, "msgctl")
+        sth.assert_min_call_count(msgctl_calls, 2, "msgctl")
 
         # Check for IPC_STAT command
         stat_calls = [c for c in msgctl_calls if "IPC_STAT" in str(c.get("args", []))]
-        assert len(stat_calls) > 0, "Should have msgctl with IPC_STAT"
+        sth.assert_min_call_count(stat_calls, 1, "msgctl IPC_STAT")
 
         # Check for IPC_RMID command
         rmid_calls = [c for c in msgctl_calls if "IPC_RMID" in str(c.get("args", []))]
-        assert len(rmid_calls) > 0, "Should have msgctl with IPC_RMID"
+        sth.assert_min_call_count(rmid_calls, 1, "msgctl IPC_RMID")
 
     def test_msgctl_struct_decoding(self) -> None:
         """Test msgctl decodes struct msqid_ds fields."""
-        msgctl_calls = [sc for sc in self.syscalls if sc.get("syscall") == "msgctl"]
+        msgctl_calls = sth.filter_syscalls(self.syscalls, "msgctl")
         stat_calls = [c for c in msgctl_calls if "IPC_STAT" in str(c.get("args", []))]
-        assert len(stat_calls) > 0, "Should have msgctl IPC_STAT calls"
+        sth.assert_min_call_count(stat_calls, 1, "msgctl IPC_STAT")
 
         # Check that struct fields are present in output
         call = stat_calls[-1]  # Get last IPC_STAT call (after SET)
@@ -161,22 +103,15 @@ class TestIPCAIOSyscalls(unittest.TestCase):
     # Semaphore Tests
     def test_semget_with_ipc_flags(self) -> None:
         """Test semget syscall with IPC_CREAT|IPC_EXCL flags."""
-        semget_calls = [sc for sc in self.syscalls if sc.get("syscall") == "semget"]
-        assert len(semget_calls) > 0, "Should have semget syscalls"
-
-        call = semget_calls[0]
-        args = call.get("args", [])
-        assert len(args) == 3, "semget should have 3 arguments"
-
-        # Third argument should be flags with IPC_CREAT|IPC_EXCL|mode
-        flags_arg = args[2]
-        assert "IPC_CREAT" in flags_arg, f"semget flags should contain IPC_CREAT: {flags_arg}"
-        assert "IPC_EXCL" in flags_arg, f"semget flags should contain IPC_EXCL: {flags_arg}"
+        semget_calls = sth.filter_syscalls(self.syscalls, "semget")
+        sth.assert_min_call_count(semget_calls, 1, "semget")
+        sth.assert_arg_count(semget_calls[0], 3, "semget")
+        sth.assert_symbolic_value(semget_calls[0], 2, ["IPC_CREAT", "IPC_EXCL"], "semget flags")
 
     def test_semctl_commands(self) -> None:
         """Test semctl syscall with different commands."""
-        semctl_calls = [sc for sc in self.syscalls if sc.get("syscall") == "semctl"]
-        assert len(semctl_calls) >= 5, "Should have multiple semctl calls"
+        semctl_calls = sth.filter_syscalls(self.syscalls, "semctl")
+        sth.assert_min_call_count(semctl_calls, 5, "semctl")
 
         commands_found = set()
         for call in semctl_calls:
@@ -205,166 +140,135 @@ class TestIPCAIOSyscalls(unittest.TestCase):
 
     def test_semop_flags(self) -> None:
         """Test semop syscall with SEM_UNDO flag."""
-        semop_calls = [sc for sc in self.syscalls if sc.get("syscall") == "semop"]
-        assert len(semop_calls) >= 2, "Should have multiple semop calls"
-
-        # At least one call should use SEM_UNDO (based on our fixture)
-        # Note: semop takes a pointer to sembuf array, so flags aren't directly visible in args
-        # This test primarily verifies the syscall is captured
-        call = semop_calls[0]
-        args = call.get("args", [])
-        assert len(args) == 3, "semop should have 3 arguments: semid, sops, nsops"
+        semop_calls = sth.filter_syscalls(self.syscalls, "semop")
+        sth.assert_min_call_count(semop_calls, 2, "semop")
+        sth.assert_arg_count(semop_calls[0], 3, "semop")
 
     # Shared Memory Tests
     def test_shmget_with_ipc_flags(self) -> None:
         """Test shmget syscall with IPC_CREAT|IPC_EXCL flags."""
-        shmget_calls = [sc for sc in self.syscalls if sc.get("syscall") == "shmget"]
-        assert len(shmget_calls) > 0, "Should have shmget syscalls"
-
-        call = shmget_calls[0]
-        args = call.get("args", [])
-        assert len(args) == 3, "shmget should have 3 arguments"
-
-        # Third argument should be flags with IPC_CREAT|IPC_EXCL|mode
-        flags_arg = args[2]
-        assert "IPC_CREAT" in flags_arg, f"shmget flags should contain IPC_CREAT: {flags_arg}"
-        assert "IPC_EXCL" in flags_arg, f"shmget flags should contain IPC_EXCL: {flags_arg}"
+        shmget_calls = sth.filter_syscalls(self.syscalls, "shmget")
+        sth.assert_min_call_count(shmget_calls, 1, "shmget")
+        sth.assert_arg_count(shmget_calls[0], 3, "shmget")
+        sth.assert_symbolic_value(shmget_calls[0], 2, ["IPC_CREAT", "IPC_EXCL"], "shmget flags")
 
     def test_shmat_flags(self) -> None:
         """Test shmat syscall with SHM_RDONLY and SHM_RND flags."""
-        shmat_calls = [sc for sc in self.syscalls if sc.get("syscall") == "shmat"]
-        assert len(shmat_calls) >= 3, "Should have multiple shmat calls"
+        shmat_calls = sth.filter_syscalls(self.syscalls, "shmat")
+        sth.assert_min_call_count(shmat_calls, 3, "shmat")
 
         # Find the call with SHM_RDONLY
         readonly_calls = [
             c for c in shmat_calls if len(c.get("args", [])) >= 3 and "SHM_RDONLY" in c["args"][2]
         ]
-        assert len(readonly_calls) > 0, "Should have shmat with SHM_RDONLY flag"
+        sth.assert_min_call_count(readonly_calls, 1, "shmat SHM_RDONLY")
 
         # Find the call with SHM_RND
         rnd_calls = [
             c for c in shmat_calls if len(c.get("args", [])) >= 3 and "SHM_RND" in c["args"][2]
         ]
-        assert len(rnd_calls) > 0, "Should have shmat with SHM_RND flag"
+        sth.assert_min_call_count(rnd_calls, 1, "shmat SHM_RND")
 
     def test_shmctl_commands(self) -> None:
         """Test shmctl syscall with different commands."""
-        shmctl_calls = [sc for sc in self.syscalls if sc.get("syscall") == "shmctl"]
-        assert len(shmctl_calls) >= 2, "Should have multiple shmctl calls"
+        shmctl_calls = sth.filter_syscalls(self.syscalls, "shmctl")
+        sth.assert_min_call_count(shmctl_calls, 2, "shmctl")
 
         # Check for IPC_STAT command
         stat_calls = [c for c in shmctl_calls if "IPC_STAT" in str(c.get("args", []))]
-        assert len(stat_calls) > 0, "Should have shmctl with IPC_STAT"
+        sth.assert_min_call_count(stat_calls, 1, "shmctl IPC_STAT")
 
         # Check for IPC_RMID command
         rmid_calls = [c for c in shmctl_calls if "IPC_RMID" in str(c.get("args", []))]
-        assert len(rmid_calls) > 0, "Should have shmctl with IPC_RMID"
+        sth.assert_min_call_count(rmid_calls, 1, "shmctl IPC_RMID")
 
     def test_shmdt(self) -> None:
         """Test shmdt syscall."""
-        shmdt_calls = [sc for sc in self.syscalls if sc.get("syscall") == "shmdt"]
-        assert len(shmdt_calls) >= 3, "Should have multiple shmdt calls (one per shmat)"
-
-        call = shmdt_calls[0]
-        args = call.get("args", [])
-        assert len(args) == 1, "shmdt should have 1 argument (shmaddr)"
+        shmdt_calls = sth.filter_syscalls(self.syscalls, "shmdt")
+        sth.assert_min_call_count(shmdt_calls, 3, "shmdt")
+        sth.assert_arg_count(shmdt_calls[0], 1, "shmdt")
 
     # POSIX Shared Memory Tests
     def test_shm_open(self) -> None:
         """Test shm_open syscall."""
-        shm_open_calls = [sc for sc in self.syscalls if sc.get("syscall") == "shm_open"]
-        assert len(shm_open_calls) >= 2, "Should have multiple shm_open calls"
+        shm_open_calls = sth.filter_syscalls(self.syscalls, "shm_open")
+        sth.assert_min_call_count(shm_open_calls, 2, "shm_open")
 
         # Find the call that creates /strace_test_shm (not the system one)
         test_calls = [c for c in shm_open_calls if "/strace_test_shm" in str(c.get("args", []))]
-        assert len(test_calls) >= 1, "Should have shm_open call for /strace_test_shm"
+        sth.assert_min_call_count(test_calls, 1, "shm_open /strace_test_shm")
 
         # First call: create with O_CREAT|O_RDWR|O_EXCL
         call = test_calls[0]
-        args = call.get("args", [])
-        assert len(args) == 3, "shm_open should have 3 arguments: name, oflag, mode"
+        sth.assert_arg_count(call, 3, "shm_open")
 
         # Check for name
-        name_arg = args[0]
-        assert "/strace_test_shm" in name_arg, f"shm_open should have name: {name_arg}"
+        sth.assert_arg_type(call, 0, str, "shm_open name")
+        assert "/strace_test_shm" in call["args"][0], (
+            f"shm_open should have name /strace_test_shm: {call['args'][0]}"
+        )
 
         # Check for flags (should be decoded symbolically)
-        flags_arg = args[1]
-        assert "O_CREAT" in flags_arg, f"shm_open flags should contain O_CREAT: {flags_arg}"
-        assert "O_RDWR" in flags_arg, f"shm_open flags should contain O_RDWR: {flags_arg}"
-        assert "O_EXCL" in flags_arg, f"shm_open flags should contain O_EXCL: {flags_arg}"
+        sth.assert_symbolic_value(call, 1, ["O_CREAT", "O_RDWR", "O_EXCL"], "shm_open flags")
 
         # Check for mode (should be octal)
-        mode_arg = args[2]
-        assert "0600" in mode_arg or "384" in str(mode_arg), (
+        mode_arg = call["args"][2]
+        assert "0600" in str(mode_arg) or "384" in str(mode_arg), (
             f"shm_open mode should be 0600: {mode_arg}"
         )
 
     def test_shm_unlink(self) -> None:
         """Test shm_unlink syscall."""
-        shm_unlink_calls = [sc for sc in self.syscalls if sc.get("syscall") == "shm_unlink"]
-        assert len(shm_unlink_calls) >= 1, "Should have shm_unlink call"
-
-        call = shm_unlink_calls[0]
-        args = call.get("args", [])
-        assert len(args) == 1, "shm_unlink should have 1 argument: name"
-
-        # Check for name
-        name_arg = args[0]
-        assert "/strace_test_shm" in name_arg, f"shm_unlink should have name: {name_arg}"
+        shm_unlink_calls = sth.filter_syscalls(self.syscalls, "shm_unlink")
+        sth.assert_min_call_count(shm_unlink_calls, 1, "shm_unlink")
+        sth.assert_arg_count(shm_unlink_calls[0], 1, "shm_unlink")
+        sth.assert_arg_type(shm_unlink_calls[0], 0, str, "shm_unlink name")
+        assert "/strace_test_shm" in shm_unlink_calls[0]["args"][0], (
+            f"shm_unlink should have name /strace_test_shm: {shm_unlink_calls[0]['args'][0]}"
+        )
 
     # AIO Tests
     def test_aio_cancel(self) -> None:
         """Test aio_cancel syscall."""
-        aio_cancel_calls = [sc for sc in self.syscalls if sc.get("syscall") == "aio_cancel"]
-        assert len(aio_cancel_calls) > 0, "Should have aio_cancel syscalls"
-
-        call = aio_cancel_calls[0]
-        args = call.get("args", [])
-        assert len(args) == 2, "aio_cancel should have 2 arguments: fd, aiocbp"
+        aio_cancel_calls = sth.filter_syscalls(self.syscalls, "aio_cancel")
+        sth.assert_min_call_count(aio_cancel_calls, 1, "aio_cancel")
+        sth.assert_arg_count(aio_cancel_calls[0], 2, "aio_cancel")
 
     def test_aio_error(self) -> None:
         """Test aio_error syscall."""
-        aio_error_calls = [sc for sc in self.syscalls if sc.get("syscall") == "aio_error"]
-        assert len(aio_error_calls) > 0, "Should have aio_error syscalls"
-
-        call = aio_error_calls[0]
-        args = call.get("args", [])
-        assert len(args) == 1, "aio_error should have 1 argument: aiocbp"
+        aio_error_calls = sth.filter_syscalls(self.syscalls, "aio_error")
+        sth.assert_min_call_count(aio_error_calls, 1, "aio_error")
+        sth.assert_arg_count(aio_error_calls[0], 1, "aio_error")
 
     def test_aio_suspend(self) -> None:
         """Test aio_suspend syscall."""
-        aio_suspend_calls = [sc for sc in self.syscalls if sc.get("syscall") == "aio_suspend"]
-        assert len(aio_suspend_calls) > 0, "Should have aio_suspend syscalls"
-
-        call = aio_suspend_calls[0]
-        args = call.get("args", [])
-        assert len(args) == 3, "aio_suspend should have 3 arguments: aiocblist, nent, timeout"
+        aio_suspend_calls = sth.filter_syscalls(self.syscalls, "aio_suspend")
+        sth.assert_min_call_count(aio_suspend_calls, 1, "aio_suspend")
+        sth.assert_arg_count(aio_suspend_calls[0], 3, "aio_suspend")
 
     def test_lio_listio_modes(self) -> None:
         """Test lio_listio syscall with LIO_WAIT and LIO_NOWAIT modes."""
-        lio_calls = [sc for sc in self.syscalls if sc.get("syscall") == "lio_listio"]
-        assert len(lio_calls) >= 2, "Should have multiple lio_listio calls"
+        lio_calls = sth.filter_syscalls(self.syscalls, "lio_listio")
+        sth.assert_min_call_count(lio_calls, 2, "lio_listio")
 
         # Check for LIO_WAIT mode
         wait_calls = [c for c in lio_calls if "LIO_WAIT" in str(c.get("args", []))]
-        assert len(wait_calls) > 0, "Should have lio_listio with LIO_WAIT mode"
+        sth.assert_min_call_count(wait_calls, 1, "lio_listio LIO_WAIT")
 
         # Check for LIO_NOWAIT mode
         nowait_calls = [c for c in lio_calls if "LIO_NOWAIT" in str(c.get("args", []))]
-        assert len(nowait_calls) > 0, "Should have lio_listio with LIO_NOWAIT mode"
+        sth.assert_min_call_count(nowait_calls, 1, "lio_listio LIO_NOWAIT")
 
         # Verify argument count
         for call in lio_calls:
-            args = call.get("args", [])
-            assert len(args) == 4, "lio_listio should have 4 arguments: mode, list, nent, sig"
+            sth.assert_arg_count(call, 4, "lio_listio")
 
     # Struct Decoding Tests
     def test_semctl_struct_decoding(self) -> None:
         """Test semctl decodes struct semid_ds fields."""
-        semctl_calls = [sc for sc in self.syscalls if sc.get("syscall") == "semctl"]
+        semctl_calls = sth.filter_syscalls(self.syscalls, "semctl")
         stat_calls = [c for c in semctl_calls if "IPC_STAT" in str(c.get("args", []))]
-        assert len(stat_calls) > 0, "Should have semctl IPC_STAT calls"
+        sth.assert_min_call_count(stat_calls, 1, "semctl IPC_STAT")
 
         call = stat_calls[0]
         output_str = str(call)
@@ -376,9 +280,9 @@ class TestIPCAIOSyscalls(unittest.TestCase):
 
     def test_shmctl_struct_decoding(self) -> None:
         """Test shmctl decodes struct shmid_ds fields."""
-        shmctl_calls = [sc for sc in self.syscalls if sc.get("syscall") == "shmctl"]
+        shmctl_calls = sth.filter_syscalls(self.syscalls, "shmctl")
         stat_calls = [c for c in shmctl_calls if "IPC_STAT" in str(c.get("args", []))]
-        assert len(stat_calls) > 0, "Should have shmctl IPC_STAT calls"
+        sth.assert_min_call_count(stat_calls, 1, "shmctl IPC_STAT")
 
         call = stat_calls[0]
         output_str = str(call)
@@ -390,8 +294,8 @@ class TestIPCAIOSyscalls(unittest.TestCase):
 
     def test_aio_suspend_array_decoding(self) -> None:
         """Test aio_suspend decodes aiocb* array."""
-        aio_suspend_calls = [sc for sc in self.syscalls if sc.get("syscall") == "aio_suspend"]
-        assert len(aio_suspend_calls) > 0, "Should have aio_suspend calls"
+        aio_suspend_calls = sth.filter_syscalls(self.syscalls, "aio_suspend")
+        sth.assert_min_call_count(aio_suspend_calls, 1, "aio_suspend")
 
         call = aio_suspend_calls[0]
         output_str = str(call)
@@ -404,12 +308,12 @@ class TestIPCAIOSyscalls(unittest.TestCase):
 
     def test_lio_listio_array_decoding(self) -> None:
         """Test lio_listio decodes aiocb* array with operations."""
-        lio_calls = [sc for sc in self.syscalls if sc.get("syscall") == "lio_listio"]
-        assert len(lio_calls) >= 2, "Should have lio_listio calls"
+        lio_calls = sth.filter_syscalls(self.syscalls, "lio_listio")
+        sth.assert_min_call_count(lio_calls, 2, "lio_listio")
 
         # Check the LIO_WAIT call with 2 operations
         wait_calls = [c for c in lio_calls if "LIO_WAIT" in str(c.get("args", []))]
-        assert len(wait_calls) > 0, "Should have LIO_WAIT calls"
+        sth.assert_min_call_count(wait_calls, 1, "lio_listio LIO_WAIT")
 
         call = wait_calls[0]
         output_str = str(call)
@@ -424,9 +328,9 @@ class TestIPCAIOSyscalls(unittest.TestCase):
 
     def test_lio_listio_sigevent_decoding(self) -> None:
         """Test lio_listio decodes struct sigevent."""
-        lio_calls = [sc for sc in self.syscalls if sc.get("syscall") == "lio_listio"]
+        lio_calls = sth.filter_syscalls(self.syscalls, "lio_listio")
         nowait_calls = [c for c in lio_calls if "LIO_NOWAIT" in str(c.get("args", []))]
-        assert len(nowait_calls) > 0, "Should have LIO_NOWAIT calls with sigevent"
+        sth.assert_min_call_count(nowait_calls, 1, "lio_listio LIO_NOWAIT")
 
         call = nowait_calls[-1]  # Last one has SIGEV_SIGNAL
         output_str = str(call)
@@ -438,8 +342,8 @@ class TestIPCAIOSyscalls(unittest.TestCase):
 
     def test_aiocb_struct_fields(self) -> None:
         """Test that individual aiocb structs show fd, offset, nbytes."""
-        aio_cancel_calls = [sc for sc in self.syscalls if sc.get("syscall") == "aio_cancel"]
-        assert len(aio_cancel_calls) > 0, "Should have aio_cancel calls"
+        aio_cancel_calls = sth.filter_syscalls(self.syscalls, "aio_cancel")
+        sth.assert_min_call_count(aio_cancel_calls, 1, "aio_cancel")
 
         call = aio_cancel_calls[0]
         output_str = str(call)

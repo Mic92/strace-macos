@@ -7,57 +7,31 @@ and tests high-level decoding of arguments.
 
 from __future__ import annotations
 
-import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "fixtures"))
-import helpers  # type: ignore[import-not-found]
-from compile import get_test_executable  # type: ignore[import-not-found]
+import syscall_test_helpers as sth  # type: ignore[import-not-found]
 
 
 class TestFdSyscalls(unittest.TestCase):
     """Test fd syscall coverage using the test executable's --fd-ops mode."""
 
-    def setUp(self) -> None:
-        """Set up test fixtures."""
-        self.test_executable = get_test_executable()
-        self.python_path = "/usr/bin/python3"  # System Python for LLDB
-        self.strace_module = str(Path(__file__).parent.parent)
+    exit_code: int
+    syscalls: list[dict]
 
-    def run_strace(self, args: list[str]) -> int:
-        """Run strace and return exit code."""
-        cmd = [self.python_path, "-m", "strace_macos", *args]
-        result = subprocess.run(
-            cmd,
-            check=False,
-            cwd=self.strace_module,
-            capture_output=True,
-            text=True,
-        )
-        return result.returncode
+    @classmethod
+    def setUpClass(cls) -> None:
+        """Run the test executable once and capture syscalls for all tests."""
+        cls.exit_code, cls.syscalls = sth.run_strace_for_mode("--fd-ops", Path(__file__))
+
+    def test_executable_exits_successfully(self) -> None:
+        """Test that the executable runs without errors."""
+        assert self.exit_code == 0, f"Test executable should exit with 0, got {self.exit_code}"
 
     def test_fd_syscall_coverage(self) -> None:  # noqa: PLR0915
         """Test that all expected fd syscalls are captured and decoded."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            output_file = Path(f.name)
-
-        try:
-            exit_code = self.run_strace(
-                ["--json", "-o", str(output_file), str(self.test_executable), "--fd-ops"]
-            )
-
-            assert exit_code == 0, f"strace should exit with code 0, got {exit_code}"
-            assert output_file.exists(), "Output file should be created"
-
-            # Parse JSON Lines output
-            syscalls = helpers.json_lines(output_file)
-            syscall_names = [sc.get("syscall") for sc in syscalls]
-        finally:
-            if output_file.exists():
-                output_file.unlink()
 
         # Expected fd syscalls
         expected_syscalls = {
@@ -74,59 +48,32 @@ class TestFdSyscalls(unittest.TestCase):
             "lseek",
         }
 
-        captured_fd_syscalls = expected_syscalls & set(syscall_names)
-        missing_syscalls = expected_syscalls - set(syscall_names)
-
         # We should capture at least 9 out of 11 expected syscalls
         # (some like mkstemp might be implemented as open internally)
-        assert len(captured_fd_syscalls) >= 9, (
-            f"Should capture at least 9 fd syscalls, "
-            f"got {len(captured_fd_syscalls)}.\n"
-            f"Captured: {sorted(captured_fd_syscalls)}\n"
-            f"Missing: {sorted(missing_syscalls)}"
-        )
+        sth.assert_syscall_coverage(self.syscalls, expected_syscalls, 9, "fd syscalls")
 
         # Test readv: should decode iovec structures
         # Expected output: readv(3, [{iov_base="...", iov_len=16}, ...], 3)
-        readv_calls = [sc for sc in syscalls if sc.get("syscall") == "readv"]
+        readv_calls = sth.filter_syscalls(self.syscalls, "readv")
         if readv_calls:
-            readv_call = readv_calls[0]
-            iov_arg = readv_call["args"][1]
-            # iov should be a list of dicts
-            assert isinstance(iov_arg, list), (
-                f"readv iovec should be decoded as list, got {type(iov_arg)}"
-            )
-            assert len(iov_arg) > 0, f"readv should have iovec elements, got {iov_arg}"
-            # Check first iovec
-            iov = iov_arg[0]
-            assert isinstance(iov, dict), f"iovec should be a dict, got {type(iov)}"
-            assert "iov_base" in iov, f"iovec should have iov_base, got {iov}"
-            assert "iov_len" in iov, f"iovec should have iov_len, got {iov}"
+            sth.assert_iovec_structure(readv_calls[0], 1, "readv")
 
         # Test writev: should decode iovec structures
         # Expected output: writev(3, [{iov_base="First ", iov_len=6}, ...], 3)
-        writev_calls = [sc for sc in syscalls if sc.get("syscall") == "writev"]
+        writev_calls = sth.filter_syscalls(self.syscalls, "writev")
         if writev_calls:
-            writev_call = writev_calls[0]
-            iov_arg = writev_call["args"][1]
-            assert isinstance(iov_arg, list), (
-                f"writev iovec should be decoded as list, got {type(iov_arg)}"
-            )
-            assert len(iov_arg) >= 3, f"writev should have 3 iovec elements, got {len(iov_arg)}"
-            # Check first iovec
-            iov = iov_arg[0]
-            assert isinstance(iov, dict), f"iovec should be a dict, got {type(iov)}"
-            assert "iov_base" in iov, f"iovec should have iov_base, got {iov}"
-            assert "iov_len" in iov, f"iovec should have iov_len, got {iov}"
+            iovecs = sth.assert_iovec_structure(writev_calls[0], 1, "writev", min_count=3)
             # Should decode buffer content
-            assert iov["iov_base"] == "First ", (
-                f"iovec buffer should be 'First ', got {iov['iov_base']!r}"
+            assert iovecs[0]["iov_base"] == "First ", (
+                f"iovec buffer should be 'First ', got {iovecs[0]['iov_base']!r}"
             )
-            assert iov["iov_len"] == 6, f"iovec length should be 6, got {iov['iov_len']}"
+            assert iovecs[0]["iov_len"] == 6, (
+                f"iovec length should be 6, got {iovecs[0]['iov_len']}"
+            )
 
         # Test pwrite: should show offset parameter
         # Expected output: pwrite(3, "TEST", 4, 6)
-        pwrite_calls = [sc for sc in syscalls if sc.get("syscall") == "pwrite"]
+        pwrite_calls = sth.filter_syscalls(self.syscalls, "pwrite")
         if pwrite_calls:
             pwrite_call = pwrite_calls[0]
             buf_arg = pwrite_call["args"][1]
@@ -137,7 +84,7 @@ class TestFdSyscalls(unittest.TestCase):
 
         # Test pread: should show offset parameter
         # Expected output: pread(3, buf, 4, 0)
-        pread_calls = [sc for sc in syscalls if sc.get("syscall") == "pread"]
+        pread_calls = sth.filter_syscalls(self.syscalls, "pread")
         if pread_calls:
             pread_call = pread_calls[0]
             offset_arg = pread_call["args"][3]
@@ -145,108 +92,72 @@ class TestFdSyscalls(unittest.TestCase):
 
         # Test dup: should return new fd
         # Expected output: dup(3) = 4
-        dup_calls = [sc for sc in syscalls if sc.get("syscall") == "dup"]
-        assert len(dup_calls) > 0, "Should have dup calls"
-        dup_call = dup_calls[0]
-        assert len(dup_call["args"]) == 1, f"dup should have 1 arg, got {len(dup_call['args'])}"
-        assert isinstance(dup_call["args"][0], int), (
-            f"dup arg should be int fd, got {type(dup_call['args'][0])}"
-        )
+        dup_calls = sth.filter_syscalls(self.syscalls, "dup")
+        sth.assert_min_call_count(dup_calls, 1, "dup")
+        sth.assert_arg_count(dup_calls[0], 1, "dup")
+        sth.assert_arg_type(dup_calls[0], 0, int, "dup fd")
 
         # Test dup2: should show both old and new fd
         # Expected output: dup2(3, 100) = 100
-        dup2_calls = [sc for sc in syscalls if sc.get("syscall") == "dup2"]
+        dup2_calls = sth.filter_syscalls(self.syscalls, "dup2")
         if dup2_calls:
-            dup2_call = dup2_calls[0]
-            assert len(dup2_call["args"]) == 2, (
-                f"dup2 should have 2 args, got {len(dup2_call['args'])}"
-            )
-            new_fd = dup2_call["args"][1]
+            sth.assert_arg_count(dup2_calls[0], 2, "dup2")
+            new_fd = dup2_calls[0]["args"][1]
             assert new_fd == 100, f"dup2 new fd should be 100, got {new_fd}"
 
         # Test fcntl: should decode commands and arguments properly
-        fcntl_calls = [sc for sc in syscalls if sc.get("syscall") == "fcntl"]
-        assert len(fcntl_calls) >= 4, f"Should have at least 4 fcntl calls, got {len(fcntl_calls)}"
+        fcntl_calls = sth.filter_syscalls(self.syscalls, "fcntl")
+        sth.assert_min_call_count(fcntl_calls, 4, "fcntl")
 
         # F_GETFD: should have 2 args (no third arg)
         getfd_calls = [sc for sc in fcntl_calls if "F_GETFD" in str(sc["args"][1])]
-        assert len(getfd_calls) > 0, "Should have fcntl F_GETFD calls"
-        getfd_call = getfd_calls[0]
-        assert len(getfd_call["args"]) == 2, (
-            f"fcntl F_GETFD should have 2 args, got {len(getfd_call['args'])}: {getfd_call['args']}"
-        )
-        assert getfd_call["args"][1] == "F_GETFD", (
-            f"fcntl cmd should be F_GETFD, got {getfd_call['args'][1]}"
-        )
+        sth.assert_min_call_count(getfd_calls, 1, "fcntl F_GETFD")
+        sth.assert_arg_count(getfd_calls[0], 2, "fcntl F_GETFD")
+        sth.assert_symbolic_value(getfd_calls[0], 1, "F_GETFD", "fcntl cmd")
 
         # F_SETFD: should decode FD_CLOEXEC flags
         setfd_calls = [sc for sc in fcntl_calls if "F_SETFD" in str(sc["args"][1])]
-        assert len(setfd_calls) > 0, "Should have fcntl F_SETFD calls"
-        setfd_call = setfd_calls[0]
-        assert len(setfd_call["args"]) == 3, (
-            f"fcntl F_SETFD should have 3 args, got {len(setfd_call['args'])}"
-        )
-        flags_arg = setfd_call["args"][2]
-        # Should decode FD_CLOEXEC flag
+        sth.assert_min_call_count(setfd_calls, 1, "fcntl F_SETFD")
+        sth.assert_arg_count(setfd_calls[0], 3, "fcntl F_SETFD")
+        flags_arg = setfd_calls[0]["args"][2]
         assert "FD_CLOEXEC" in str(flags_arg) or flags_arg == 1, (
             f"fcntl F_SETFD should decode FD_CLOEXEC, got {flags_arg}"
         )
 
         # F_GETFL: should have 2 args and decode return value
         getfl_calls = [sc for sc in fcntl_calls if "F_GETFL" in str(sc["args"][1])]
-        assert len(getfl_calls) > 0, "Should have fcntl F_GETFL calls"
-        getfl_call = getfl_calls[0]
-        assert len(getfl_call["args"]) == 2, (
-            f"fcntl F_GETFL should have 2 args, got {len(getfl_call['args'])}: {getfl_call['args']}"
-        )
-        # Return value should decode O_* flags
-        ret_val = getfl_call.get("return")
+        sth.assert_min_call_count(getfl_calls, 1, "fcntl F_GETFL")
+        sth.assert_arg_count(getfl_calls[0], 2, "fcntl F_GETFL")
+        ret_val = getfl_calls[0].get("return")
         if isinstance(ret_val, str):
             assert "O_" in ret_val, f"fcntl F_GETFL return should decode O_* flags, got {ret_val}"
 
         # F_SETFL: should decode O_* file status flags
         setfl_calls = [sc for sc in fcntl_calls if "F_SETFL" in str(sc["args"][1])]
-        assert len(setfl_calls) > 0, "Should have fcntl F_SETFL calls"
-        setfl_call = setfl_calls[0]
-        assert len(setfl_call["args"]) == 3, (
-            f"fcntl F_SETFL should have 3 args, got {len(setfl_call['args'])}"
-        )
-        flags_arg = setfl_call["args"][2]
-        # Should decode O_* flags
-        assert "O_" in str(flags_arg), f"fcntl F_SETFL should decode O_* flags, got {flags_arg}"
+        sth.assert_min_call_count(setfl_calls, 1, "fcntl F_SETFL")
+        sth.assert_arg_count(setfl_calls[0], 3, "fcntl F_SETFL")
+        sth.assert_symbolic_value(setfl_calls[0], 2, "O_", "fcntl F_SETFL flags")
 
         # Test ioctl: should decode requests and data arguments
-        ioctl_calls = [sc for sc in syscalls if sc.get("syscall") == "ioctl"]
-        assert len(ioctl_calls) >= 2, f"Should have at least 2 ioctl calls, got {len(ioctl_calls)}"
+        ioctl_calls = sth.filter_syscalls(self.syscalls, "ioctl")
+        sth.assert_min_call_count(ioctl_calls, 2, "ioctl")
 
         # FIOCLEX: should have 2 args (no data argument)
         fioclex_calls = [sc for sc in ioctl_calls if "FIOCLEX" in str(sc["args"][1])]
-        assert len(fioclex_calls) > 0, "Should have ioctl FIOCLEX calls"
-        fioclex_call = fioclex_calls[0]
-        assert len(fioclex_call["args"]) == 2, (
-            f"ioctl FIOCLEX should have 2 args, got {len(fioclex_call['args'])}: {fioclex_call['args']}"
-        )
+        sth.assert_min_call_count(fioclex_calls, 1, "ioctl FIOCLEX")
+        sth.assert_arg_count(fioclex_calls[0], 2, "ioctl FIOCLEX")
 
         # FIONCLEX: should have 2 args (no data argument)
         fionclex_calls = [sc for sc in ioctl_calls if "FIONCLEX" in str(sc["args"][1])]
-        assert len(fionclex_calls) > 0, "Should have ioctl FIONCLEX calls"
-        fionclex_call = fionclex_calls[0]
-        assert len(fionclex_call["args"]) == 2, (
-            f"ioctl FIONCLEX should have 2 args, got {len(fionclex_call['args'])}: {fionclex_call['args']}"
-        )
+        sth.assert_min_call_count(fionclex_calls, 1, "ioctl FIONCLEX")
+        sth.assert_arg_count(fionclex_calls[0], 2, "ioctl FIONCLEX")
 
         # FIONREAD: should decode int* as [value]
         fionread_calls = [sc for sc in ioctl_calls if "FIONREAD" in str(sc["args"][1])]
-        assert len(fionread_calls) > 0, "Should have ioctl FIONREAD calls"
-        fionread_call = fionread_calls[0]
-        assert len(fionread_call["args"]) == 3, (
-            f"ioctl FIONREAD should have 3 args, got {len(fionread_call['args'])}"
-        )
-        data_arg = fionread_call["args"][2]
-        # Should be a list with single int value
-        assert isinstance(data_arg, list), (
-            f"ioctl FIONREAD data should be list, got {type(data_arg)}: {data_arg}"
-        )
+        sth.assert_min_call_count(fionread_calls, 1, "ioctl FIONREAD")
+        sth.assert_arg_count(fionread_calls[0], 3, "ioctl FIONREAD")
+        data_arg = fionread_calls[0]["args"][2]
+        sth.assert_arg_type(fionread_calls[0], 2, list, "ioctl FIONREAD data")
         assert len(data_arg) == 1, f"ioctl FIONREAD should have 1 value, got {len(data_arg)}"
         assert isinstance(data_arg[0], int), (
             f"ioctl FIONREAD value should be int, got {type(data_arg[0])}"
@@ -254,37 +165,19 @@ class TestFdSyscalls(unittest.TestCase):
 
         # TIOCGWINSZ: should decode struct winsize
         tiocgwinsz_calls = [sc for sc in ioctl_calls if "TIOCGWINSZ" in str(sc["args"][1])]
-        assert len(tiocgwinsz_calls) > 0, "Should have ioctl TIOCGWINSZ calls"
-        tiocgwinsz_call = tiocgwinsz_calls[0]
-        assert len(tiocgwinsz_call["args"]) == 3, (
-            f"ioctl TIOCGWINSZ should have 3 args, got {len(tiocgwinsz_call['args'])}"
-        )
-        data_arg = tiocgwinsz_call["args"][2]
-        # Should be a dict with winsize fields
-        assert isinstance(data_arg, dict), (
-            f"ioctl TIOCGWINSZ data should be dict, got {type(data_arg)}"
-        )
-        # Check for struct winsize fields
-        assert "output" in data_arg, f"TIOCGWINSZ should have output, got {data_arg}"
-        winsize = data_arg["output"]
-        assert "ws_row" in winsize, f"winsize should have ws_row, got {winsize}"
+        sth.assert_min_call_count(tiocgwinsz_calls, 1, "ioctl TIOCGWINSZ")
+        sth.assert_arg_count(tiocgwinsz_calls[0], 3, "ioctl TIOCGWINSZ")
+        winsize = sth.assert_struct_field(tiocgwinsz_calls[0], 2, "ws_row", "TIOCGWINSZ")
         assert "ws_col" in winsize, f"winsize should have ws_col, got {winsize}"
 
         # TIOCGETA: should decode struct termios
         tiocgeta_calls = [sc for sc in ioctl_calls if "TIOCGETA" in str(sc["args"][1])]
-        assert len(tiocgeta_calls) > 0, "Should have ioctl TIOCGETA calls"
-        tiocgeta_call = tiocgeta_calls[0]
-        assert len(tiocgeta_call["args"]) == 3, (
-            f"ioctl TIOCGETA should have 3 args, got {len(tiocgeta_call['args'])}"
-        )
-        data_arg = tiocgeta_call["args"][2]
-        # Should be a dict with termios fields
-        assert isinstance(data_arg, dict), (
-            f"ioctl TIOCGETA data should be dict, got {type(data_arg)}"
-        )
-        # Check for struct termios output
+        sth.assert_min_call_count(tiocgeta_calls, 1, "ioctl TIOCGETA")
+        sth.assert_arg_count(tiocgeta_calls[0], 3, "ioctl TIOCGETA")
+        sth.assert_arg_type(tiocgeta_calls[0], 2, dict, "ioctl TIOCGETA data")
+        # Check for struct termios output - termios fields are directly in the dict
+        data_arg = tiocgeta_calls[0]["args"][2]
         assert "output" in data_arg, f"TIOCGETA should have output, got {data_arg}"
-        # Termios fields may vary, just check it's a dict
         assert isinstance(data_arg["output"], dict), (
             f"TIOCGETA output should be dict, got {type(data_arg['output'])}"
         )
