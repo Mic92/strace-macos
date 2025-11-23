@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from strace_macos.string_quote import quote_string
+
 
 class SyscallArg(ABC):
     """Base class for typed syscall arguments."""
@@ -169,30 +171,7 @@ class BufferArg(SyscallArg):
         Returns:
             Escaped string representation without outer quotes
         """
-        if not data:
-            return ""
-
-        display_data = data[:max_display]
-        suffix = "..." if len(data) > max_display else ""
-
-        # Try to decode as UTF-8 text
-        try:
-            text = display_data.decode("utf-8", errors="strict")
-        except UnicodeDecodeError:
-            # Binary data - show as hex
-            hex_data = display_data.hex()
-            hex_bytes = "\\x".join(hex_data[i : i + 2] for i in range(0, len(hex_data), 2))
-            return f"\\x{hex_bytes}{suffix}"
-        else:
-            # Escape special characters
-            escaped = (
-                text.replace("\\", "\\\\")
-                .replace('"', '\\"')
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t")
-            )
-            return f"{escaped}{suffix}"
+        return quote_string(data, max_display)
 
     def __str__(self) -> str:
         """Return string representation showing buffer contents."""
