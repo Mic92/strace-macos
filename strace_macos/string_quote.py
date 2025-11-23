@@ -63,7 +63,7 @@ def quote_string(data: bytes, max_length: int = 32) -> str:  # noqa: C901
             result.append(chr(byte))
         # Non-printable: use octal escape
         # Use 3-digit octal if next char is a digit, otherwise minimal
-        elif i + 1 < len(display_data) and ord("0") <= display_data[i + 1] <= ord("7"):
+        elif i + 1 < len(display_data) and 48 <= display_data[i + 1] <= 55:  # '0' to '7'
             # Need full 3-digit octal to avoid ambiguity
             result.append(f"\\{byte:03o}")
         else:
