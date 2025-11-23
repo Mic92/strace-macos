@@ -6,6 +6,17 @@ non-printable characters and escaping special characters appropriately.
 
 from __future__ import annotations
 
+# Mapping of special bytes to their escape sequences
+_ESCAPE_MAP = {
+    ord('"'): '\\"',
+    ord("\\"): "\\\\",
+    ord("\t"): "\\t",
+    ord("\n"): "\\n",
+    ord("\r"): "\\r",
+    ord("\v"): "\\v",
+    ord("\f"): "\\f",
+}
+
 
 def is_printable(c: int) -> bool:
     """Check if a character is printable ASCII.
@@ -19,7 +30,35 @@ def is_printable(c: int) -> bool:
     return 0x20 <= c < 0x7F  # Space (32) through ~ (126)
 
 
-def quote_string(data: bytes, max_length: int = 32) -> str:  # noqa: C901
+def _escape_byte(byte: int, next_byte: int | None) -> str:
+    """Escape a single byte for terminal output.
+
+    Args:
+        byte: The byte to escape
+        next_byte: The next byte in the sequence (or None if last byte)
+
+    Returns:
+        Escaped string representation of the byte
+    """
+    # Check if it's a special character with predefined escape
+    if byte in _ESCAPE_MAP:
+        return _ESCAPE_MAP[byte]
+
+    # Check if printable
+    if is_printable(byte):
+        return chr(byte)
+
+    # Non-printable: use octal escape
+    # Use 3-digit octal if next char is a digit 0-7, otherwise minimal
+    if next_byte is not None and 48 <= next_byte <= 55:  # '0' to '7'
+        # Need full 3-digit octal to avoid ambiguity
+        return f"\\{byte:03o}"
+
+    # Can use minimal octal representation
+    return f"\\{byte:o}"
+
+
+def quote_string(data: bytes, max_length: int = 32) -> str:
     """Quote and escape a byte string for safe terminal output.
 
     This function implements string quoting similar to strace:
@@ -43,31 +82,7 @@ def quote_string(data: bytes, max_length: int = 32) -> str:  # noqa: C901
     result = []
 
     for i, byte in enumerate(display_data):
-        # Handle special escape sequences first
-        if byte == ord('"'):
-            result.append('\\"')
-        elif byte == ord("\\"):
-            result.append("\\\\")
-        elif byte == ord("\t"):
-            result.append("\\t")
-        elif byte == ord("\n"):
-            result.append("\\n")
-        elif byte == ord("\r"):
-            result.append("\\r")
-        elif byte == ord("\v"):
-            result.append("\\v")
-        elif byte == ord("\f"):
-            result.append("\\f")
-        # Check if printable
-        elif is_printable(byte):
-            result.append(chr(byte))
-        # Non-printable: use octal escape
-        # Use 3-digit octal if next char is a digit, otherwise minimal
-        elif i + 1 < len(display_data) and 48 <= display_data[i + 1] <= 55:  # '0' to '7'
-            # Need full 3-digit octal to avoid ambiguity
-            result.append(f"\\{byte:03o}")
-        else:
-            # Can use minimal octal representation
-            result.append(f"\\{byte:o}")
+        next_byte = display_data[i + 1] if i + 1 < len(display_data) else None
+        result.append(_escape_byte(byte, next_byte))
 
     return "".join(result) + suffix
