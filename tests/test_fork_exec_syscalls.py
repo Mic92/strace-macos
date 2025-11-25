@@ -43,9 +43,7 @@ class TestForkExecSyscalls(unittest.TestCase):
         }
 
         # We should capture all 4 syscalls
-        sth.assert_syscall_coverage(
-            self.syscalls, expected_syscalls, 4, "fork/exec/spawn syscalls"
-        )
+        sth.assert_syscall_coverage(self.syscalls, expected_syscalls, 4, "fork/exec/spawn syscalls")
 
     def test_fork_syscall(self) -> None:
         """Test fork syscall is captured correctly."""
@@ -84,7 +82,7 @@ class TestForkExecSyscalls(unittest.TestCase):
         sth.assert_min_call_count(execve_calls, 1, "execve")
 
         for call in execve_calls:
-            # execve(path, argv, envp)
+            # Check arg count: path, argv, envp
             sth.assert_arg_count(call, 3, "execve")
 
             # First arg: path (string)
@@ -109,7 +107,9 @@ class TestForkExecSyscalls(unittest.TestCase):
             assert "VAR2=value2" in envp, "envp should contain VAR2=value2"
 
             # Return value should be -1 (ENOENT) since path doesn't exist
-            assert isinstance(call["return"], (int, str)), "execve return should be int or error string"
+            assert isinstance(call["return"], (int, str)), (
+                "execve return should be int or error string"
+            )
 
     def test_posix_spawn_argv_decoding(self) -> None:
         """Test posix_spawn syscall with argv array decoding."""
@@ -119,7 +119,7 @@ class TestForkExecSyscalls(unittest.TestCase):
         sth.assert_min_call_count(spawn_calls, 1, "posix_spawn")
 
         for call in spawn_calls:
-            # posix_spawn(pid, path, file_actions, attrp, argv, envp)
+            # Check arg count: pid, path, file_actions, attrp, argv, envp
             sth.assert_arg_count(call, 6, "posix_spawn")
 
             # First arg: pid pointer

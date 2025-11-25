@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Union
 
 from strace_macos.syscalls.args import (
     FileDescriptorArg,
@@ -22,44 +23,49 @@ from strace_macos.syscalls.args import (
 if TYPE_CHECKING:
     from strace_macos.syscalls.args import SyscallArg
 
+# Type alias for JSON-serializable argument format
+JsonArgType = Union[dict[str, Union[str, int, list[Any]]], list[Any], str, int, None]
 
+
+@dataclass
 class SyscallEvent:
     """Represents a captured syscall event."""
 
-    def __init__(  # noqa: PLR0913
-        self,
-        pid: int,
-        syscall_name: str,
-        args: list[SyscallArg],
-        return_value: int | str,
-        timestamp: float,
-        raw_args: list[int] | None = None,
-    ) -> None:
-        """Initialize a syscall event.
+    pid: int
+    syscall_name: str
+    args: list[SyscallArg]
+    return_value: int | str
+    timestamp: float
+    raw_args: list[int] = field(default_factory=list)
 
-        Args:
-            pid: Process ID
-            syscall_name: Name of the syscall
-            args: List of typed syscall arguments
-            return_value: Return value (or "?" if not captured)
-            timestamp: Timestamp in seconds since epoch
-            raw_args: Raw register values for arguments (saved at entry, used at exit)
-        """
-        self.pid = pid
-        self.syscall_name = syscall_name
-        self.args = args
-        self.return_value = return_value
-        self.timestamp = timestamp
-        self.raw_args = raw_args or []
+
+def _format_symbolic_or_value(arg: IntArg | FlagsArg) -> str | int:
+    """Format IntArg or FlagsArg: prefer symbolic name if available, else value."""
+    return arg.symbolic if arg.symbolic else arg.value
 
 
 class JSONFormatter:
     """Format syscalls as JSON Lines."""
 
+    # Type dispatch handlers for JSON formatting (initialized at module load time)
+    _TYPE_HANDLERS: ClassVar[dict[type, Callable[[Any], JsonArgType]]] = {
+        SkipArg: lambda _: None,
+        StructArg: lambda arg: arg.fields,
+        StringArrayArg: lambda arg: arg.strings,
+        StructArrayArg: lambda arg: arg.struct_list,
+        IntPtrArg: lambda arg: [arg.value],
+        FileDescriptorArg: lambda arg: arg.fd,
+        IntArg: _format_symbolic_or_value,
+        FlagsArg: _format_symbolic_or_value,
+        StringArg: lambda arg: arg.value,
+        UnsignedArg: lambda arg: arg.value,
+        PointerArg: lambda arg: f"0x{arg.address:x}",
+    }
+
     @staticmethod
-    def _format_arg_for_json(  # noqa: PLR0911
+    def _format_arg_for_json(
         arg: SyscallArg,
-    ) -> dict[str, str | int | list] | list | str | int | None:
+    ) -> JsonArgType:
         """Format a single argument for JSON output.
 
         Args:
@@ -68,29 +74,12 @@ class JSONFormatter:
         Returns:
             JSON-serializable representation, or None to skip
         """
-        if isinstance(arg, SkipArg):
-            return None
-        if isinstance(arg, StructArg):
-            return arg.fields
-        if isinstance(arg, StringArrayArg):
-            # Return list of strings for JSON
-            return arg.strings
-        if isinstance(arg, StructArrayArg):
-            return arg.struct_list
-        if isinstance(arg, IntPtrArg):
-            return [arg.value]
-        if isinstance(arg, FileDescriptorArg):
-            return arg.fd
-        if isinstance(arg, (IntArg, FlagsArg)):
-            # Both IntArg and FlagsArg use symbolic if available, otherwise value
-            return arg.symbolic if arg.symbolic else arg.value
-        if isinstance(arg, StringArg):
-            # Return raw value for JSON (don't include quotes - json.dumps will add them)
-            return arg.value
-        if isinstance(arg, UnsignedArg):
-            return arg.value
-        if isinstance(arg, PointerArg):
-            return f"0x{arg.address:x}"
+        # Look up handler by exact type
+        handler = JSONFormatter._TYPE_HANDLERS.get(type(arg))
+        if handler is not None:
+            return handler(arg)
+
+        # Fallback for unknown types
         return str(arg)
 
     @staticmethod
@@ -104,7 +93,7 @@ class JSONFormatter:
             JSON string (no trailing newline)
         """
         # Format args: preserve types for JSON, filter out SkipArg
-        formatted_args: list[dict[str, str | int | list] | list | str | int] = []
+        formatted_args: list[dict[str, str | int | list[Any]] | list[Any] | str | int] = []
         for arg in event.args:
             formatted_arg = JSONFormatter._format_arg_for_json(arg)
             if formatted_arg is not None:
