@@ -239,7 +239,6 @@ class ArrayOfStringsParam(Param):
             if ptr_value == 0:
                 break
 
-            # Read the string at this pointer (uses errors="replace" internally)
             string_val = self._read_string(process, ptr_value)
             strings.append(string_val)
 

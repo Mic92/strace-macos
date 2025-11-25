@@ -262,6 +262,25 @@ class SkipArg(SyscallArg):
         return ""
 
 
+class UuidArg(SyscallArg):
+    """UUID argument (16-byte identifier shown in standard format).
+
+    Displays without quotes like: A1B2C3D4-E5F6-7890-ABCD-EF1234567890
+    """
+
+    def __init__(self, uuid_str: str) -> None:
+        """Initialize a UUID argument.
+
+        Args:
+            uuid_str: UUID in standard format (XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX)
+        """
+        self.uuid_str = uuid_str
+
+    def __str__(self) -> str:
+        """Return UUID string without quotes."""
+        return self.uuid_str
+
+
 class IntPtrArg(SyscallArg):
     """Argument that is an int* pointer (shows as [value] in output).
 

@@ -30,6 +30,7 @@ int mode_process_advanced(int argc, char *argv[]);
 int mode_signal(int argc, char *argv[]);
 int mode_kqueue_select(int argc, char *argv[]);
 int mode_fork_exec(int argc, char *argv[]);
+int mode_sysinfo(int argc, char *argv[]);
 int mode_long_running(int argc, char *argv[]);
 int mode_fail(int argc, char *argv[]);
 int mode_default(int argc, char *argv[]);
@@ -63,6 +64,8 @@ static const test_mode_t modes[] = {
      "Kqueue/select ops (kqueue/kevent/kevent64/select/pselect/poll)"},
     {"--fork-exec", mode_fork_exec,
      "Fork/exec ops (fork/vfork/execve/posix_spawn)"},
+    {"--sysinfo", mode_sysinfo,
+     "System info ops (sysctl/sysctlbyname/getdtablesize/gethostuuid/getentropy)"},
     {"--long-running", mode_long_running,
      "Long-running process for attach testing"},
     {"--fail", mode_fail, "Exit with non-zero status"},

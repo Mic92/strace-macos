@@ -59,6 +59,10 @@ class Tracer:
     pending_syscalls: dict[tuple[int, int], SyscallEvent] = field(init=False)
     interrupted: bool = field(init=False)
 
+    # Syscall parameter caches (for cross-parameter context sharing)
+    sysctl_mib_cache: dict[int, list[int]] = field(init=False, default_factory=dict)
+    sysctlbyname_cache: dict[int, str] = field(init=False, default_factory=dict)
+
     def __post_init__(self) -> None:
         """Initialize runtime state after dataclass field assignment."""
         # Load LLDB
@@ -658,57 +662,3 @@ class Tracer:
             # Only update if decode returned something (not None)
             if decoded is not None:
                 event.args[i] = decoded
-
-    def _read_string(self, process: lldb.SBProcess, address: int, max_length: int = 4096) -> str:
-        """Read a null-terminated string from process memory.
-
-        Args:
-            process: LLDB process
-            address: Memory address to read from
-            max_length: Maximum string length to read
-
-        Returns:
-            The string read from memory, or "?" if unable to read
-        """
-        if address == 0:
-            return "NULL"
-
-        # Read in small chunks to avoid crossing page boundaries
-        # Page size on macOS is typically 16KB (0x4000)
-        chunk_size = 256
-        result_bytes = bytearray()
-        current_address = address
-        bytes_read = 0
-
-        error = self.lldb.SBError()
-
-        while bytes_read < max_length:
-            # Read a chunk
-            chunk = process.ReadMemory(
-                current_address, min(chunk_size, max_length - bytes_read), error
-            )
-
-            if error.Fail():
-                # If we haven't read anything yet, this is an error
-                if bytes_read == 0:
-                    return f"0x{address:x}"
-                # Otherwise, just stop here
-                break
-
-            # Look for null terminator in this chunk
-            try:
-                null_pos = chunk.index(b"\x00")
-                result_bytes.extend(chunk[:null_pos])
-                break  # Found end of string
-            except ValueError:
-                # No null in this chunk, add it all and continue
-                result_bytes.extend(chunk)
-                bytes_read += len(chunk)
-                current_address += len(chunk)
-
-        # Decode the string, escaping invalid UTF-8 bytes
-        if not result_bytes:
-            return f"0x{address:x}"
-
-        # Use backslashreplace to show \xNN for invalid bytes
-        return result_bytes.decode("utf-8", errors="backslashreplace")

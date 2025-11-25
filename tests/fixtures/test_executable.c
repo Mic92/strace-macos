@@ -16,6 +16,7 @@
 #include "mode_process_identity.h"
 #include "mode_process_advanced.h"
 #include "mode_signal.h"
+#include "mode_sysinfo.h"
 #include "modes.h"
 #include <string.h>
 

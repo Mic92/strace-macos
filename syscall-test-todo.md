@@ -489,18 +489,19 @@ Legend:
 
 ## System Info Syscalls (12 total)
 
-- [ ] sysctl
-- [ ] sysctlbyname
-- [ ] getdtablesize
-- [ ] gethostuuid
-- [ ] getentropy
-- [ ] kas_info
-- [ ] ledger
-- [ ] memorystatus_available_memory
-- [ ] memorystatus_control
-- [ ] telemetry
-- [ ] usrctl
-- [ ] work_interval_ctl
+- [x] sysctl (with MIB array, buffer, and size pointer decoding)
+- [x] sysctlbyname (with name string, buffer, and size pointer decoding)
+- [ ] sysctlnametomib (libc wrapper - doesn't generate syscalls)
+- [x] getdtablesize (no args)
+- [x] gethostuuid (with UUID and timespec decoding)
+- [x] getentropy (with buffer and size)
+- [x] usrctl (with flags)
+- [ ] kas_info (no public prototype - internal only)
+- [ ] ledger (no public prototype - internal only)
+- [ ] memorystatus_available_memory (no public prototype - internal only)
+- [ ] memorystatus_control (no public prototype - internal only)
+- [ ] telemetry (no public prototype - internal only)
+- [ ] work_interval_ctl (no public prototype - internal only)
 
 ---
 
