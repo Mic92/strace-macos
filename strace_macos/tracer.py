@@ -19,6 +19,7 @@ from strace_macos.syscalls.args import (
     UnknownArg,
 )
 from strace_macos.syscalls.category import SyscallCategory
+from strace_macos.syscalls.definitions import DecodeContext
 from strace_macos.syscalls.formatters import (
     ColorTextFormatter,
     JSONFormatter,
@@ -58,6 +59,7 @@ class Tracer:
     arch: Architecture = field(init=False)
     pending_syscalls: dict[tuple[int, int], SyscallEvent] = field(init=False)
     interrupted: bool = field(init=False)
+    decode_ctx: DecodeContext | None = field(init=False, default=None)
 
     # Syscall parameter caches (for cross-parameter context sharing)
     sysctl_mib_cache: dict[int, list[int]] = field(init=False, default_factory=dict)
@@ -236,6 +238,9 @@ class Tracer:
                 msg = f"Failed to launch process: {error}"
                 raise RuntimeError(msg)
 
+            # Create reusable decode context (avoids allocations in hot path)
+            self.decode_ctx = DecodeContext(tracer=self, process=process)
+
             # Trace syscalls
             exit_code = self._trace_loop(process)
 
@@ -317,6 +322,9 @@ class Tracer:
 
             _debugger, target, process = result
             self._set_syscall_breakpoints(target)
+
+            # Create reusable decode context (avoids allocations in hot path)
+            self.decode_ctx = DecodeContext(tracer=self, process=process)
 
             old_handler = self._setup_signal_handler()
 
@@ -545,7 +553,7 @@ class Tracer:
         if isinstance(event.return_value, int) and event.return_value >= 0:
             syscall_def = self.registry.lookup_by_name(event.syscall_name)
             if syscall_def:
-                self._decode_params_at_exit(frame, event, syscall_def.params)
+                self._decode_params_at_exit(event, syscall_def.params)
 
         # Write the complete event
         self._write_event(event)
@@ -571,6 +579,46 @@ class Tracer:
             frame, process, syscall_def.params, arg_regs, syscall_def.variadic_start
         )
 
+    def _read_raw_arg_value(
+        self,
+        frame: lldb.SBFrame,
+        process: lldb.SBProcess,
+        arg_index: int,
+        arg_regs: list[str],
+        variadic_start: int | None,
+    ) -> int:
+        """Read a single raw argument value from register or stack.
+
+        Returns the raw integer value of the argument at the given index.
+        """
+        # Check if this is a variadic argument
+        if variadic_start is not None and arg_index >= variadic_start:
+            variadic_index = arg_index - variadic_start
+            value = self.arch.read_variadic_arg(frame, process, self.lldb, variadic_index)
+            return 0 if value is None else value
+
+        # Check if we've run out of registers
+        if arg_index >= len(arg_regs):
+            return 0
+
+        # Read from register (normal case)
+        reg = frame.FindRegister(arg_regs[arg_index])
+        if not reg or not reg.IsValid():
+            return 0
+        return int(reg.GetValueAsUnsigned())
+
+    def _decode_param_with_context(self, param: Param, raw_value: int) -> SyscallArg:
+        """Decode a single parameter using the decode context.
+
+        Returns the decoded SyscallArg or UnknownArg if decoding fails.
+        """
+        if not self.decode_ctx:
+            return UnknownArg()
+
+        self.decode_ctx.raw_value = raw_value
+        decoded = param.decode(self.decode_ctx)
+        return decoded if decoded is not None else UnknownArg()
+
     def _extract_args_with_params(
         self,
         frame: lldb.SBFrame,
@@ -592,58 +640,41 @@ class Tracer:
             Tuple of (decoded_args, raw_values) where raw_values are saved for exit-time decoding
         """
         # First, read all raw register/stack values
-        raw_values: list[int] = []
-        for i in range(len(params)):
-            # Check if this is a variadic argument
-            if variadic_start is not None and i >= variadic_start:
-                # Use architecture-specific method to read variadic argument
-                variadic_index = i - variadic_start
-                value = self.arch.read_variadic_arg(frame, process, self.lldb, variadic_index)
-                raw_values.append(value if value is not None else 0)
-            elif i >= len(arg_regs):
-                raw_values.append(0)
-            else:
-                # Read from register (normal case)
-                reg = frame.FindRegister(arg_regs[i])
-                if not reg or not reg.IsValid():
-                    raw_values.append(0)
-                else:
-                    raw_values.append(reg.GetValueAsUnsigned())
+        raw_values = [
+            self._read_raw_arg_value(frame, process, i, arg_regs, variadic_start)
+            for i in range(len(params))
+        ]
+
+        # Update context with per-syscall data (shared across all arguments)
+        if self.decode_ctx:
+            self.decode_ctx.all_args = raw_values
+            self.decode_ctx.at_entry = True
+            self.decode_ctx.return_value = None
 
         # Now decode each argument using its Param
-        args: list[SyscallArg] = []
-        for i, param in enumerate(params):
-            if i >= len(raw_values):
-                args.append(UnknownArg())
-                continue
-
-            decoded = param.decode(
-                tracer=self,
-                process=process,
-                raw_value=raw_values[i],
-                all_args=raw_values,
-                at_entry=True,
-            )
-            if decoded is not None:
-                args.append(decoded)
-            else:
-                args.append(UnknownArg())
+        args = [
+            self._decode_param_with_context(param, raw_values[i])
+            if i < len(raw_values)
+            else UnknownArg()
+            for i, param in enumerate(params)
+        ]
 
         return args, raw_values
 
-    def _decode_params_at_exit(
-        self, frame: lldb.SBFrame, event: SyscallEvent, params: list[Param]
-    ) -> None:
+    def _decode_params_at_exit(self, event: SyscallEvent, params: list[Param]) -> None:
         """Re-decode parameters at syscall exit (for OUT params).
 
         Uses raw_args saved at entry time, since argument registers are
         clobbered at exit time.
         """
-        thread = frame.GetThread()
-        process = thread.GetProcess()
-
         # Use saved raw values from entry time (NOT re-reading registers!)
         raw_values = event.raw_args
+
+        # Update context with per-syscall data (shared across all arguments)
+        if self.decode_ctx:
+            self.decode_ctx.all_args = raw_values
+            self.decode_ctx.at_entry = False
+            self.decode_ctx.return_value = event.return_value
 
         # Re-decode parameters that need exit-time decoding
         for i, param in enumerate(params):
@@ -652,13 +683,13 @@ class Tracer:
             if i >= len(raw_values):
                 continue
 
-            decoded = param.decode(
-                tracer=self,
-                process=process,
-                raw_value=raw_values[i],
-                all_args=raw_values,
-                at_entry=False,
-            )
+            # Update per-argument field in context and decode
+            if self.decode_ctx:
+                self.decode_ctx.raw_value = raw_values[i]
+                decoded = param.decode(self.decode_ctx)
+            else:
+                decoded = None
+
             # Only update if decode returned something (not None)
             if decoded is not None:
                 event.args[i] = decoded

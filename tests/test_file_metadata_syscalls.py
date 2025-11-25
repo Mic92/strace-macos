@@ -255,6 +255,66 @@ class TestFileMetadataSyscalls(unittest.TestCase):
         removedir_calls = [c for c in unlinkat_calls if c["args"][2] == "AT_REMOVEDIR"]
         sth.assert_min_call_count(removedir_calls, 1, "unlinkat with AT_REMOVEDIR flag")
 
+    def test_chown_uid_gid_minus_one_regression(self) -> None:
+        """Regression test for issue #11: uid/gid -1 should display as -1.
+
+        When uid or gid is -1 (meaning "don't change"), it should be displayed as -1.
+        The fixture uses: chown(path, -1, 1000) and fchown(fd, 1000, -1)
+        """
+        chown_calls = sth.filter_syscalls(self.syscalls, "chown")
+        fchown_calls = sth.filter_syscalls(self.syscalls, "fchown")
+        all_chown_calls = chown_calls + fchown_calls
+
+        # Find calls where uid or gid is -1
+        found_uid_minus_one = False
+        found_gid_minus_one = False
+
+        for call in all_chown_calls:
+            if len(call.get("args", [])) >= 3:
+                uid = call["args"][1]
+                gid = call["args"][2]
+
+                # Check for chown(path, -1, <gid>) - uid should be -1
+                if uid == -1 and gid == 1000:
+                    found_uid_minus_one = True
+
+                # Check for fchown(fd, <uid>, -1) - gid should be -1
+                if uid == 1000 and gid == -1:
+                    found_gid_minus_one = True
+
+        # The test fixture should have both cases
+        assert found_uid_minus_one, "Test should have chown with uid=-1"
+        assert found_gid_minus_one, "Test should have fchown with gid=-1"
+
+    def test_readlink_shows_target_regression(self) -> None:
+        """Regression test for issue #6: readlink should show the actual link target.
+
+        readlink() and readlinkat() should decode the output buffer to show the
+        symlink target path, not just the buffer pointer.
+        The fixture creates: symlink("/tmp/target", ...) and symlink("/tmp/target2", ...)
+        """
+        readlink_calls = sth.filter_syscalls(self.syscalls, "readlink")
+        sth.assert_min_call_count(readlink_calls, 1, "readlink")
+
+        # Check that readlink shows the target path
+        call = readlink_calls[0]
+        buf = call["args"][1]
+        assert isinstance(buf, str), f"readlink buf should be decoded as string, got {type(buf)}"
+        assert "/tmp/target" in buf, (  # noqa: S108
+            f"readlink should show symlink target '/tmp/target', got: {buf}"
+        )
+
+        # Check readlinkat
+        readlinkat_calls = sth.filter_syscalls(self.syscalls, "readlinkat")
+        sth.assert_min_call_count(readlinkat_calls, 1, "readlinkat")
+
+        call = readlinkat_calls[0]
+        buf = call["args"][2]
+        assert isinstance(buf, str), f"readlinkat buf should be decoded as string, got {type(buf)}"
+        assert "/tmp/target2" in buf, (  # noqa: S108
+            f"readlinkat should show symlink target '/tmp/target2', got: {buf}"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

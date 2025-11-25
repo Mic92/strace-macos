@@ -12,6 +12,7 @@ from strace_macos.lldb_loader import load_lldb_module
 from strace_macos.syscalls import numbers
 from strace_macos.syscalls.args import IntArg, PointerArg, StringArg, StructArg, UuidArg
 from strace_macos.syscalls.definitions import (
+    DecodeContext,
     Param,
     PointerParam,
     StringParam,
@@ -36,28 +37,20 @@ class SysctlMibParam(Param):
     Stores the MIB values in tracer for use by buffer decoder.
     """
 
-    def decode(
-        self,
-        tracer: Any,
-        process: Any,
-        raw_value: int,
-        all_args: list[int],
-        *,
-        at_entry: bool,  # noqa: ARG002
-    ) -> SyscallArg:
+    def decode(self, ctx: DecodeContext) -> SyscallArg:
         """Decode MIB array pointer."""
-        if raw_value == 0:
+        if ctx.raw_value == 0:
             return PointerArg(0)
 
         # namelen is the next argument (index 1)
-        if len(all_args) < 2:
-            return PointerArg(raw_value)
+        if len(ctx.all_args) < 2:
+            return PointerArg(ctx.raw_value)
 
-        namelen = all_args[1]
-        decoded, mib_values = decode_sysctl_mib(process, raw_value, namelen)
+        namelen = ctx.all_args[1]
+        decoded, mib_values = decode_sysctl_mib(ctx.process, ctx.raw_value, namelen)
 
         # Store MIB values in tracer for buffer decoder to use
-        tracer.sysctl_mib_cache[id(all_args)] = mib_values
+        ctx.tracer.sysctl_mib_cache[id(ctx.all_args)] = mib_values
 
         return StringArg(decoded)
 
@@ -94,29 +87,21 @@ class SysctlBufferParam(Param):
 
         return PointerArg(raw_value)
 
-    def decode(
-        self,
-        tracer: Any,
-        process: Any,
-        raw_value: int,
-        all_args: list[int],
-        *,
-        at_entry: bool,
-    ) -> SyscallArg:
+    def decode(self, ctx: DecodeContext) -> SyscallArg:
         """Decode buffer contents."""
-        if raw_value == 0 or at_entry:
-            return PointerArg(raw_value)
+        if ctx.raw_value == 0 or ctx.at_entry:
+            return PointerArg(ctx.raw_value)
 
         # Get MIB values from cache to determine type
-        mib_values = tracer.sysctl_mib_cache.get(id(all_args), [])
+        mib_values = ctx.tracer.sysctl_mib_cache.get(id(ctx.all_args), [])
         if not mib_values:
-            return PointerArg(raw_value)
+            return PointerArg(ctx.raw_value)
 
         sysctl_type = get_sysctl_type(mib_values)
         if not sysctl_type:
-            return PointerArg(raw_value)
+            return PointerArg(ctx.raw_value)
 
-        return self._decode_by_type(process, raw_value, sysctl_type)
+        return self._decode_by_type(ctx.process, ctx.raw_value, sysctl_type)
 
 
 class SysctlBynameNameParam(Param):
@@ -125,24 +110,16 @@ class SysctlBynameNameParam(Param):
     Decodes the string AND caches it for the buffer decoder to use.
     """
 
-    def decode(
-        self,
-        tracer: Any,
-        process: Any,
-        raw_value: int,
-        all_args: list[int],
-        *,
-        at_entry: bool,
-    ) -> SyscallArg:
+    def decode(self, ctx: DecodeContext) -> SyscallArg:
         """Decode name string and cache it."""
         # Use standard StringParam logic
 
         string_param = StringParam()
-        result = string_param.decode(tracer, process, raw_value, all_args, at_entry=at_entry)
+        result = string_param.decode(ctx)
 
         # Cache the name for buffer decoder
         if isinstance(result, StringArg):
-            tracer.sysctlbyname_cache[id(all_args)] = result.value
+            ctx.tracer.sysctlbyname_cache[id(ctx.all_args)] = result.value
 
         return result
 
@@ -179,78 +156,54 @@ class SysctlBynameBufferParam(Param):
 
         return PointerArg(raw_value)
 
-    def decode(
-        self,
-        tracer: Any,
-        process: Any,
-        raw_value: int,
-        all_args: list[int],
-        *,
-        at_entry: bool,
-    ) -> SyscallArg:
+    def decode(self, ctx: DecodeContext) -> SyscallArg:
         """Decode buffer contents."""
-        if raw_value == 0 or at_entry:
-            return PointerArg(raw_value)
+        if ctx.raw_value == 0 or ctx.at_entry:
+            return PointerArg(ctx.raw_value)
 
         # Get sysctl name from first argument (should be stored in tracer cache)
-        sysctl_name = tracer.sysctlbyname_cache.get(id(all_args))
+        sysctl_name = ctx.tracer.sysctlbyname_cache.get(id(ctx.all_args))
         if not sysctl_name:
-            return PointerArg(raw_value)
+            return PointerArg(ctx.raw_value)
 
         sysctl_type = get_sysctl_type_by_name(sysctl_name)
         if not sysctl_type:
-            return PointerArg(raw_value)
+            return PointerArg(ctx.raw_value)
 
-        return self._decode_by_type(process, raw_value, sysctl_type)
+        return self._decode_by_type(ctx.process, ctx.raw_value, sysctl_type)
 
 
 class UuidParam(Param):
     """Decoder for uuid_t parameter (16-byte UUID)."""
 
-    def decode(
-        self,
-        tracer: Any,  # noqa: ARG002
-        process: Any,
-        raw_value: int,
-        all_args: list[int],  # noqa: ARG002
-        *,
-        at_entry: bool,
-    ) -> SyscallArg:
+    def decode(self, ctx: DecodeContext) -> SyscallArg:
         """Decode UUID - can decode at entry or exit."""
-        if raw_value == 0:
+        if ctx.raw_value == 0:
             return PointerArg(0)
 
         # UUIDs are output params, decode at exit
-        if at_entry:
-            return PointerArg(raw_value)
+        if ctx.at_entry:
+            return PointerArg(ctx.raw_value)
 
-        uuid_str = decode_uuid(process, raw_value)
+        uuid_str = decode_uuid(ctx.process, ctx.raw_value)
         return UuidArg(uuid_str)
 
 
 class TimespecParam(Param):
     """Decoder for struct timespec pointer parameter."""
 
-    def decode(
-        self,
-        tracer: Any,  # noqa: ARG002
-        process: Any,
-        raw_value: int,
-        all_args: list[int],  # noqa: ARG002
-        *,
-        at_entry: bool,  # noqa: ARG002
-    ) -> SyscallArg:
+    def decode(self, ctx: DecodeContext) -> SyscallArg:
         """Decode timespec - can decode at entry (input param)."""
-        if raw_value == 0:
+        if ctx.raw_value == 0:
             return PointerArg(0)
 
         lldb = load_lldb_module()
         error = lldb.SBError()
 
         # struct timespec is 16 bytes (tv_sec: 8 bytes, tv_nsec: 8 bytes)
-        data = process.ReadMemory(raw_value, 16, error)
+        data = ctx.process.ReadMemory(ctx.raw_value, 16, error)
         if error.Fail():
-            return PointerArg(raw_value)
+            return PointerArg(ctx.raw_value)
 
         tv_sec = struct.unpack("<q", data[0:8])[0]  # signed 64-bit
         tv_nsec = struct.unpack("<q", data[8:16])[0]  # signed 64-bit
@@ -264,26 +217,18 @@ class SysctlSizePointerParam(Param):
     Shows the size pointer value like [256] or [256->7] (before->after).
     """
 
-    def decode(
-        self,
-        tracer: Any,  # noqa: ARG002
-        process: Any,
-        raw_value: int,
-        all_args: list[int],  # noqa: ARG002
-        *,
-        at_entry: bool,  # noqa: ARG002
-    ) -> SyscallArg:
+    def decode(self, ctx: DecodeContext) -> SyscallArg:
         """Decode size pointer."""
-        if raw_value == 0:
+        if ctx.raw_value == 0:
             return PointerArg(0)
 
         lldb = load_lldb_module()
         error = lldb.SBError()
 
         # Read size_t (8 bytes on 64-bit macOS)
-        data = process.ReadMemory(raw_value, 8, error)
+        data = ctx.process.ReadMemory(ctx.raw_value, 8, error)
         if error.Fail():
-            return PointerArg(raw_value)
+            return PointerArg(ctx.raw_value)
 
         size_value = struct.unpack("<Q", data)[0]  # unsigned 64-bit
         return StringArg(f"[{size_value}]")

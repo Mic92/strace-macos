@@ -290,14 +290,108 @@ COPYFILE_FLAGS: dict[int, str] = {
     1 << 30: "COPYFILE_VERBOSE",
 }
 
+# Data protection classes for open_dprotected_np
+PROTECTION_CLASSES: dict[int, str] = {
+    0: "PROTECTION_CLASS_DEFAULT",
+    1: "PROTECTION_CLASS_A",
+    2: "PROTECTION_CLASS_B",
+    3: "PROTECTION_CLASS_C",
+    4: "PROTECTION_CLASS_D",
+    5: "PROTECTION_CLASS_E",
+    6: "PROTECTION_CLASS_F",
+}
+
+# Data protection flags for open_dprotected_np
+DPROTECT_FLAGS: dict[int, str] = {
+    0x0001: "O_DP_GETRAWENCRYPTED",
+    0x0002: "O_DP_GETRAWUNENCRYPTED",
+    0x0004: "O_DP_AUTHENTICATE",
+}
+
 # getattrlist/setattrlist option flags
 FSOPT_FLAGS: dict[int, str] = {
-    0x1: "FSOPT_NOFOLLOW",
-    0x4: "FSOPT_REPORT_FULLSIZE",
-    0x8: "FSOPT_PACK_INVAL_ATTRS",
-    0x20: "FSOPT_ATTR_CMN_EXTENDED",
-    0x200: "FSOPT_RETURN_REALDEV",
-    0x800: "FSOPT_NOFOLLOW_ANY",
+    0x00000001: "FSOPT_NOFOLLOW",
+    0x00000002: "FSOPT_NOINMEMUPDATE",
+    0x00000004: "FSOPT_REPORT_FULLSIZE",
+    0x00000008: "FSOPT_PACK_INVAL_ATTRS",
+    0x00000020: "FSOPT_ATTR_CMN_EXTENDED",
+    0x00000200: "FSOPT_RETURN_REALDEV",
+    0x00000800: "FSOPT_NOFOLLOW_ANY",
+}
+
+# exchangedata() option flags
+EXCHANGEDATA_FLAGS: dict[int, str] = {
+    0x0001: "FSOPT_NOFOLLOW",
+}
+
+# renameatx_np() flags
+RENAMEAT_FLAGS: dict[int, str] = {
+    0x00000002: "RENAME_SWAP",
+    0x00000004: "RENAME_EXCL",
+    0x00000008: "RENAME_RESERVED1",
+    0x00000010: "RENAME_NOFOLLOW_ANY",
+}
+
+# auditon() commands
+AUDIT_COMMANDS: dict[int, str] = {
+    2: "A_OLDGETPOLICY",
+    3: "A_OLDSETPOLICY",
+    4: "A_GETKMASK",
+    5: "A_SETKMASK",
+    6: "A_OLDGETQCTRL",
+    7: "A_OLDSETQCTRL",
+    8: "A_GETCWD",
+    9: "A_GETCAR",
+    12: "A_GETSTAT",
+    13: "A_SETSTAT",
+    14: "A_SETUMASK",
+    15: "A_SETSMASK",
+    20: "A_OLDGETCOND",
+    21: "A_OLDSETCOND",
+    22: "A_GETCLASS",
+    23: "A_SETCLASS",
+    24: "A_GETPINFO",
+    25: "A_SETPMASK",
+    26: "A_SETFSIZE",
+    27: "A_GETFSIZE",
+    28: "A_GETPINFO_ADDR",
+    29: "A_GETKAUDIT",
+    30: "A_SETKAUDIT",
+    31: "A_SENDTRIGGER",
+    32: "A_GETSINFO_ADDR",
+    33: "A_GETPOLICY",
+    34: "A_SETPOLICY",
+    35: "A_GETQCTRL",
+    36: "A_SETQCTRL",
+    37: "A_GETCOND",
+    38: "A_SETCOND",
+    39: "A_GETSFLAGS",
+    40: "A_SETSFLAGS",
+    41: "A_GETCTLMODE",
+    42: "A_SETCTLMODE",
+    43: "A_GETEXPAFTER",
+    44: "A_SETEXPAFTER",
+}
+
+# quotactl() commands
+QUOTACTL_CMDS: dict[int, str] = {
+    0x0100: "Q_QUOTAON",
+    0x0200: "Q_QUOTAOFF",
+    0x0300: "Q_GETQUOTA",
+    0x0400: "Q_SETQUOTA",
+    0x0700: "Q_QUOTASTAT",
+}
+
+# nfssvc() flags
+NFSSVC_FLAGS: dict[int, str] = {
+    0x004: "NFSSVC_NFSD",
+    0x008: "NFSSVC_ADDSOCK",
+    0x010: "NFSSVC_EXPORTSTATS",
+    0x020: "NFSSVC_USERSTATS",
+    0x040: "NFSSVC_USERCOUNT",
+    0x080: "NFSSVC_ZEROSTATS",
+    0x100: "NFSSVC_SRVSTATS",
+    0x200: "NFSSVC_EXPORT",
 }
 
 # ioctl commands - Complete set from libc

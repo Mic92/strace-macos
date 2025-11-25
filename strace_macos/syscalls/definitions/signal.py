@@ -13,7 +13,7 @@ from strace_macos.syscalls.definitions import (
     PointerParam,
     SyscallDef,
 )
-from strace_macos.syscalls.struct_params import SigactionParam, SigsetParam, StackParam
+from strace_macos.syscalls.struct_params import IntPtrParam, SigactionParam, SigsetParam, StackParam
 from strace_macos.syscalls.symbols.process import SIG_HOW
 from strace_macos.syscalls.symbols.signal import SIGNAL_NUMBERS
 
@@ -79,7 +79,7 @@ SIGNAL_SYSCALLS: list[SyscallDef] = [
         "sigwait",
         params=[
             SigsetParam(ParamDirection.IN),  # set of signals to wait for
-            PointerParam(),  # pointer to int that receives signal number
+            IntPtrParam(ParamDirection.OUT),  # pointer to int that receives signal number
         ],
     ),  # 330 (public wrapper calls __sigwait syscall)
 ]

@@ -356,6 +356,30 @@ class TestIPCAIOSyscalls(unittest.TestCase):
             or "512" in output_str
         ), f"aio_cancel should decode aiocb struct showing fildes/nbytes fields, got: {output_str}"
 
+    def test_aio_lio_opcode_decoding_regression(self) -> None:
+        """Regression test for issue #10: aio_lio_opcode should be decoded symbolically."""
+        # Find lio_listio calls
+        lio_calls = sth.filter_syscalls(self.syscalls, "lio_listio")
+        sth.assert_min_call_count(lio_calls, 1, "lio_listio")
+
+        # Get the aiocb array from lio_listio (arg 1 is the array)
+        call = lio_calls[0]
+        sth.assert_arg_type(call, 1, list, "lio_listio aiocb array")
+        aiocb_array = call["args"][1]
+
+        # The aiocb array contains formatted strings like "{fd=3, nbytes=512, op=LIO_WRITE}"
+        # Find one that has either LIO_WRITE or LIO_READ decoded
+        found_decoded_opcode = False
+        for cb_str in aiocb_array:
+            if "op=LIO_WRITE" in cb_str or "op=LIO_READ" in cb_str:
+                found_decoded_opcode = True
+                break
+
+        assert found_decoded_opcode, (
+            f"lio_listio aiocb array should have at least one entry with decoded opcode "
+            f"(op=LIO_WRITE or op=LIO_READ), got: {aiocb_array}"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

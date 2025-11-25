@@ -83,7 +83,7 @@ class TestProcessIdentity(unittest.TestCase):
         # Check that at least one call has a valid username string decoded
         valid_username_found = False
         for call in initgroups_calls:
-            # initgroups has 4 args on macOS: name, basegid, groups, ngroups
+            # initgroups syscall has 4 args: name, basegid, groups, ngroups
             sth.assert_arg_count(call, 4, "initgroups")
 
             # First arg should be username string (decoded from pointer)
@@ -146,7 +146,7 @@ class TestProcessIdentity(unittest.TestCase):
             for call in calls:
                 sth.assert_arg_count(call, 2, syscall_name)
 
-        # Four-argument syscall (initgroups)
+        # Four-argument syscall (initgroups) - syscall has 4 args
         initgroups_calls = sth.filter_syscalls(self.syscalls, "initgroups")
         sth.assert_min_call_count(initgroups_calls, 1, "initgroups")
         for call in initgroups_calls:
@@ -181,6 +181,37 @@ class TestProcessIdentity(unittest.TestCase):
             ret = call.get("return")
             assert ret is not None, "issetugid should have a return value"
             assert ret in [0, 1], f"issetugid should return 0 or 1, got {ret}"
+
+    def test_getgroups_shows_array_regression(self) -> None:
+        """Regression test for issue #13: getgroups should decode gid_t array output.
+
+        getgroups() should decode the output array to show all group IDs,
+        formatted as [gid1, gid2, ...].
+        """
+        getgroups_calls = sth.filter_syscalls(self.syscalls, "getgroups")
+        sth.assert_min_call_count(getgroups_calls, 2, "getgroups")
+
+        # Find a getgroups call with non-NULL buffer (skip the getgroups(0, NULL) call)
+        found_array = False
+        for call in getgroups_calls:
+            gidset = call["args"][1]
+            # Skip NULL pointer case
+            if gidset in ["0x0", "NULL"]:
+                continue
+
+            found_array = True
+            # Should be a string like "[20, 501, 12, ...]" showing the group IDs
+            assert isinstance(gidset, str), (
+                f"getgroups gidset should be decoded as string, got {type(gidset)}"
+            )
+            assert gidset.startswith("["), f"getgroups gidset should start with '[', got: {gidset}"
+            assert gidset.endswith("]"), f"getgroups gidset should end with ']', got: {gidset}"
+            assert "," in gidset, (
+                f"getgroups should return multiple groups separated by comma, got: {gidset}"
+            )
+            break
+
+        assert found_array, "Test should have at least one getgroups call with non-NULL buffer"
 
 
 if __name__ == "__main__":

@@ -18,7 +18,7 @@ from strace_macos.syscalls.struct_params.event_structs import (
     TimevalParam,
 )
 from strace_macos.syscalls.struct_params.fssearchblock import FssearchblockParam
-from strace_macos.syscalls.struct_params.int_ptr import IntPtrParam
+from strace_macos.syscalls.struct_params.int_ptr import FdPairParam, IntArrayParam, IntPtrParam
 from strace_macos.syscalls.struct_params.iovec import IovecParam
 from strace_macos.syscalls.struct_params.ipc_structs import (
     MsqidDsParam,
@@ -43,8 +43,10 @@ __all__ = [
     "AiocbArrayParam",
     "AiocbParam",
     "AttrListParam",
+    "FdPairParam",
     "FdSetParam",
     "FssearchblockParam",
+    "IntArrayParam",
     "IntPtrParam",
     "IovecParam",
     "Kevent64Param",

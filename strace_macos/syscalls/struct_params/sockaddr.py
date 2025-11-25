@@ -176,7 +176,10 @@ class SockaddrParam(StructParamBase):
             result["sin_port"] = f"htons({port})"
 
         # Format IP address as dotted quad
-        ip_str = socket.inet_ntoa(struct_obj.sin_addr.to_bytes(4, "big"))
+        # sin_addr is stored in network byte order (big-endian) in memory,
+        # so we need to convert to host byte order first, then to bytes in network order for inet_ntoa
+        ip_addr = socket.ntohl(struct_obj.sin_addr)
+        ip_str = socket.inet_ntoa(ip_addr.to_bytes(4, "big"))
         result["sin_addr"] = f'inet_addr("{ip_str}")'
 
         return result

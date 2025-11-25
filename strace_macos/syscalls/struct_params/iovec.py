@@ -11,7 +11,7 @@ from typing import Any, ClassVar
 
 from strace_macos.lldb_loader import load_lldb_module
 from strace_macos.syscalls.args import BufferArg, PointerArg, StructArrayArg
-from strace_macos.syscalls.definitions import Param, ParamDirection, SyscallArg
+from strace_macos.syscalls.definitions import DecodeContext, Param, ParamDirection, SyscallArg
 
 
 class Iovec(ctypes.Structure):
@@ -38,54 +38,35 @@ class IovecParam(Param):
     count_arg_index: int
     direction: ParamDirection
 
-    def decode(
-        self,
-        tracer: Any,  # noqa: ARG002
-        process: Any,
-        raw_value: int,
-        all_args: list[int],
-        *,
-        at_entry: bool,
-    ) -> SyscallArg | None:
-        """Decode iovec array pointer to StructArrayArg.
-
-        Args:
-            tracer: The Tracer instance (unused)
-            process: The lldb process object for reading memory
-            raw_value: The raw register value (pointer to iovec array)
-            all_args: All raw argument values (to get count)
-            at_entry: True if decoding at syscall entry, False at exit
-
-        Returns:
-            StructArrayArg with decoded buffers, or PointerArg if not ready/failed
-        """
+    def decode(self, ctx: DecodeContext) -> SyscallArg | None:
+        """Decode iovec array pointer to StructArrayArg."""
         # Direction filtering
-        if at_entry and self.direction != ParamDirection.IN:
-            return PointerArg(raw_value)
-        if not at_entry and self.direction != ParamDirection.OUT:
+        if ctx.at_entry and self.direction != ParamDirection.IN:
+            return PointerArg(ctx.raw_value)
+        if not ctx.at_entry and self.direction != ParamDirection.OUT:
             return None
 
         # Skip NULL pointers
-        if raw_value == 0:
+        if ctx.raw_value == 0:
             return PointerArg(0)
 
         # Get count from referenced argument
-        if self.count_arg_index >= len(all_args):
-            return PointerArg(raw_value)
+        if self.count_arg_index >= len(ctx.all_args):
+            return PointerArg(ctx.raw_value)
 
-        count = all_args[self.count_arg_index]
+        count = ctx.all_args[self.count_arg_index]
 
         # Validate count is reasonable
         if count < 0 or count > 1024:
-            return PointerArg(raw_value)
+            return PointerArg(ctx.raw_value)
 
         # Decode the iovec array
-        iov_list = self._decode_array(process, raw_value, count)
+        iov_list = self._decode_array(ctx.process, ctx.raw_value, count)
 
         if iov_list:
             return StructArrayArg(iov_list)
 
-        return PointerArg(raw_value)
+        return PointerArg(ctx.raw_value)
 
     def _decode_array(
         self,

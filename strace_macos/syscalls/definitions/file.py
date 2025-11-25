@@ -20,6 +20,7 @@ from strace_macos.syscalls.definitions import (
     PointerParam,
     StringParam,
     SyscallDef,
+    UidGidParam,
     UnsignedParam,
     VariantParam,
 )
@@ -40,15 +41,22 @@ from strace_macos.syscalls.symbols import (
 )
 from strace_macos.syscalls.symbols.file import (
     AT_FLAGS,
+    AUDIT_COMMANDS,
     CHFLAGS_FLAGS,
     CLONE_FLAGS,
     COPYFILE_FLAGS,
+    DPROTECT_FLAGS,
+    EXCHANGEDATA_FLAGS,
     FCNTL_COMMANDS,
     FD_FLAGS,
     FSOPT_FLAGS,
     MOUNT_FLAGS,
     MSYNC_FLAGS,
+    NFSSVC_FLAGS,
     PATHCONF_NAMES,
+    PROTECTION_CLASSES,
+    QUOTACTL_CMDS,
+    RENAMEAT_FLAGS,
     SEEK_CONSTANTS,
     SRCHFS_FLAGS,
     UNMOUNT_FLAGS,
@@ -135,7 +143,9 @@ FILE_SYSCALLS: list[SyscallDef] = [
         params=[StringParam(), OctalParam(), IntParam()],
     ),  # 14
     SyscallDef(numbers.SYS_chmod, "chmod", params=[StringParam(), OctalParam()]),  # 15
-    SyscallDef(numbers.SYS_chown, "chown", params=[StringParam(), IntParam(), IntParam()]),  # 16
+    SyscallDef(
+        numbers.SYS_chown, "chown", params=[StringParam(), UidGidParam(), UidGidParam()]
+    ),  # 16
     SyscallDef(
         numbers.SYS_chflags,
         "chflags",
@@ -178,7 +188,11 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_readlink,
         "readlink",
-        params=[StringParam(), PointerParam(), UnsignedParam()],
+        params=[
+            StringParam(),
+            BufferParam(size_arg_index=2, direction=ParamDirection.OUT),
+            UnsignedParam(),
+        ],
     ),  # 58
     SyscallDef(numbers.SYS_umask, "umask", params=[OctalParam()]),  # 60
     SyscallDef(numbers.SYS_chroot, "chroot", params=[StringParam()]),  # 61
@@ -233,7 +247,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_fchown,
         "fchown",
-        params=[FileDescriptorParam(), IntParam(), IntParam()],
+        params=[FileDescriptorParam(), UidGidParam(), UidGidParam()],
     ),  # 123
     SyscallDef(numbers.SYS_fchmod, "fchmod", params=[FileDescriptorParam(), OctalParam()]),  # 124
     SyscallDef(numbers.SYS_rename, "rename", params=[StringParam(), StringParam()]),  # 128
@@ -285,7 +299,9 @@ FILE_SYSCALLS: list[SyscallDef] = [
             IntParam(),
         ],
     ),  # 527
-    SyscallDef(numbers.SYS_nfssvc, "nfssvc", params=[IntParam(), PointerParam()]),  # 155
+    SyscallDef(
+        numbers.SYS_nfssvc, "nfssvc", params=[FlagsParam(NFSSVC_FLAGS), PointerParam()]
+    ),  # 155
     SyscallDef(
         numbers.SYS_statfs,
         "statfs",
@@ -305,7 +321,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_quotactl,
         "quotactl",
-        params=[StringParam(), IntParam(), IntParam(), PointerParam()],
+        params=[StringParam(), ConstParam(QUOTACTL_CMDS), IntParam(), PointerParam()],
     ),  # 165
     SyscallDef(
         numbers.SYS_mount,
@@ -317,22 +333,6 @@ FILE_SYSCALLS: list[SyscallDef] = [
             PointerParam(),
         ],
     ),  # 167
-    SyscallDef(
-        numbers.SYS_csops_audittoken,
-        "csops_audittoken",
-        params=[
-            IntParam(),
-            UnsignedParam(),
-            PointerParam(),
-            UnsignedParam(),
-            PointerParam(),
-        ],
-    ),  # 170
-    SyscallDef(
-        numbers.SYS_thread_selfcounts,
-        "thread_selfcounts",
-        params=[IntParam(), PointerParam(), UnsignedParam()],
-    ),  # 186
     SyscallDef(numbers.SYS_fdatasync, "fdatasync", params=[FileDescriptorParam()]),  # 187
     SyscallDef(
         numbers.SYS_stat,
@@ -362,7 +362,12 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_getdirentries,
         "getdirentries",
-        params=[FileDescriptorParam(), PointerParam(), UnsignedParam(), PointerParam()],
+        params=[
+            FileDescriptorParam(),
+            BufferParam(size_arg_index=2, direction=ParamDirection.OUT),
+            UnsignedParam(),
+            IntPtrParam(ParamDirection.OUT),
+        ],
     ),  # 196
     SyscallDef(
         numbers.SYS_lseek,
@@ -453,7 +458,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_exchangedata,
         "exchangedata",
-        params=[StringParam(), StringParam(), UnsignedParam()],
+        params=[StringParam(), StringParam(), FlagsParam(EXCHANGEDATA_FLAGS)],
     ),  # 223
     SyscallDef(
         numbers.SYS_searchfs,
@@ -593,7 +598,11 @@ FILE_SYSCALLS: list[SyscallDef] = [
             UnsignedParam(),
         ],
     ),  # 245
-    SyscallDef(numbers.SYS_fhopen, "fhopen", params=[PointerParam(), IntParam()]),  # 248
+    SyscallDef(
+        numbers.SYS_fhopen,
+        "fhopen",
+        params=[PointerParam(), CustomParam(decode_open_flags)],
+    ),  # 248
     SyscallDef(
         numbers.SYS_shm_open,
         "shm_open",
@@ -612,7 +621,12 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_sem_open,
         "sem_open",
-        params=[StringParam(), IntParam(), IntParam(), IntParam()],
+        params=[
+            StringParam(),
+            CustomParam(decode_open_flags),
+            OctalParam(),
+            UnsignedParam(),
+        ],
     ),  # 268
     SyscallDef(numbers.SYS_sem_close, "sem_close", params=[PointerParam()]),  # 269
     SyscallDef(numbers.SYS_sem_unlink, "sem_unlink", params=[StringParam()]),  # 270
@@ -621,18 +635,13 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "open_extended",
         params=[
             StringParam(),
-            IntParam(),
-            UnsignedParam(),
-            UnsignedParam(),
-            IntParam(),
+            CustomParam(decode_open_flags),
+            UidGidParam(),
+            UidGidParam(),
+            OctalParam(),
             PointerParam(),
         ],
     ),  # 277
-    SyscallDef(
-        numbers.SYS_umask_extended,
-        "umask_extended",
-        params=[IntParam(), PointerParam()],
-    ),  # 278
     SyscallDef(
         numbers.SYS_stat_extended,
         "stat_extended",
@@ -658,9 +667,9 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "chmod_extended",
         params=[
             StringParam(),
-            UnsignedParam(),
-            UnsignedParam(),
-            IntParam(),
+            UidGidParam(),
+            UidGidParam(),
+            OctalParam(),
             PointerParam(),
         ],
     ),  # 282
@@ -669,9 +678,9 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "fchmod_extended",
         params=[
             FileDescriptorParam(),
-            UnsignedParam(),
-            UnsignedParam(),
-            IntParam(),
+            UidGidParam(),
+            UidGidParam(),
+            OctalParam(),
             PointerParam(),
         ],
     ),  # 283
@@ -690,9 +699,9 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "mkfifo_extended",
         params=[
             StringParam(),
-            UnsignedParam(),
-            UnsignedParam(),
-            IntParam(),
+            UidGidParam(),
+            UidGidParam(),
+            OctalParam(),
             PointerParam(),
         ],
     ),  # 291
@@ -701,9 +710,9 @@ FILE_SYSCALLS: list[SyscallDef] = [
         "mkdir_extended",
         params=[
             StringParam(),
-            UnsignedParam(),
-            UnsignedParam(),
-            IntParam(),
+            UidGidParam(),
+            UidGidParam(),
+            OctalParam(),
             PointerParam(),
         ],
     ),  # 292
@@ -751,11 +760,15 @@ FILE_SYSCALLS: list[SyscallDef] = [
             IntParam(),
         ],
     ),  # 300
-    SyscallDef(numbers.SYS_audit, "audit", params=[PointerParam(), IntParam()]),  # 350
+    SyscallDef(
+        numbers.SYS_audit,
+        "audit",
+        params=[BufferParam(size_arg_index=1, direction=ParamDirection.IN), UnsignedParam()],
+    ),  # 350
     SyscallDef(
         numbers.SYS_auditon,
         "auditon",
-        params=[IntParam(), PointerParam(), IntParam()],
+        params=[ConstParam(AUDIT_COMMANDS), PointerParam(), UnsignedParam()],
     ),  # 351
     SyscallDef(numbers.SYS_getauid, "getauid", params=[PointerParam()]),  # 353
     SyscallDef(numbers.SYS_setauid, "setauid", params=[PointerParam()]),  # 354
@@ -788,7 +801,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_openbyid_np,
         "openbyid_np",
-        params=[PointerParam(), UnsignedParam(), IntParam()],
+        params=[PointerParam(), UnsignedParam(), CustomParam(decode_open_flags)],
     ),  # 407
     SyscallDef(
         numbers.SYS_fstatat,
@@ -826,7 +839,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
         params=[
             DirFdParam(),
             StringParam(),
-            PointerParam(),
+            BufferParam(size_arg_index=3, direction=ParamDirection.OUT),
             UnsignedParam(),
         ],
     ),  # 415
@@ -868,8 +881,8 @@ FILE_SYSCALLS: list[SyscallDef] = [
         params=[
             DirFdParam(),
             StringParam(),
-            UnsignedParam(),
-            UnsignedParam(),
+            UidGidParam(),
+            UidGidParam(),
             FlagsParam(AT_FLAGS),
         ],
     ),  # 422
@@ -922,7 +935,12 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_guarded_open_np,
         "guarded_open_np",
-        params=[StringParam(), PointerParam(), IntParam(), IntParam()],
+        params=[
+            StringParam(),
+            PointerParam(),
+            CustomParam(decode_open_flags),
+            IntParam(),
+        ],
     ),  # 442
     SyscallDef(
         numbers.SYS_guarded_close_np,
@@ -935,10 +953,10 @@ FILE_SYSCALLS: list[SyscallDef] = [
         params=[
             StringParam(),
             PointerParam(),
-            IntParam(),
-            IntParam(),
-            IntParam(),
-            IntParam(),
+            CustomParam(decode_open_flags),
+            ConstParam(PROTECTION_CLASSES),
+            FlagsParam(DPROTECT_FLAGS),
+            OctalParam(),
         ],
     ),  # 446
     SyscallDef(
@@ -971,7 +989,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_fmount,
         "fmount",
-        params=[StringParam(), FileDescriptorParam(), IntParam(), PointerParam()],
+        params=[StringParam(), FileDescriptorParam(), FlagsParam(MOUNT_FLAGS), PointerParam()],
     ),  # 436
     SyscallDef(
         numbers.SYS_fclonefileat,
@@ -983,18 +1001,6 @@ FILE_SYSCALLS: list[SyscallDef] = [
             FlagsParam(CLONE_FLAGS),
         ],
     ),  # 447
-    SyscallDef(
-        numbers.SYS_fs_snapshot,
-        "fs_snapshot",
-        params=[
-            UnsignedParam(),
-            FileDescriptorParam(),
-            StringParam(),
-            StringParam(),
-            PointerParam(),
-            UnsignedParam(),
-        ],
-    ),  # 448
     SyscallDef(
         numbers.SYS_mkfifoat,
         "mkfifoat",
@@ -1018,7 +1024,7 @@ FILE_SYSCALLS: list[SyscallDef] = [
             StringParam(),
             DirFdParam(),
             StringParam(),
-            UnsignedParam(),
+            FlagsParam(RENAMEAT_FLAGS),
         ],
     ),  # 488
     SyscallDef(
@@ -1070,7 +1076,12 @@ FILE_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_getdirentries64,
         "getdirentries64",
-        params=[FileDescriptorParam(), PointerParam(), UnsignedParam(), PointerParam()],
+        params=[
+            FileDescriptorParam(),
+            BufferParam(size_arg_index=2, direction=ParamDirection.OUT),
+            UnsignedParam(),
+            IntPtrParam(ParamDirection.OUT),
+        ],
     ),  # 344
     SyscallDef(
         numbers.SYS_statfs64,

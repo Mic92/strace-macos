@@ -9,12 +9,14 @@ from __future__ import annotations
 from strace_macos.syscalls import numbers
 from strace_macos.syscalls.definitions import (
     FileDescriptorParam,
+    FlagsParam,
     IntParam,
     PointerParam,
     StringParam,
     SyscallDef,
     UnsignedParam,
 )
+from strace_macos.syscalls.symbols.process import REBOOT_FLAGS
 
 # Miscellaneous syscalls (22 total) - truly miscellaneous syscalls that don't fit other categories
 MISC_SYSCALLS: list[SyscallDef] = [
@@ -25,22 +27,10 @@ MISC_SYSCALLS: list[SyscallDef] = [
         params=[UnsignedParam(), UnsignedParam(), UnsignedParam(), UnsignedParam()],
     ),  # 38
     SyscallDef(numbers.SYS_acct, "acct", params=[StringParam()]),  # 51
-    SyscallDef(numbers.SYS_reboot, "reboot", params=[IntParam(), StringParam()]),  # 55
-    SyscallDef(numbers.SYS_swapon, "swapon", params=[]),  # 85
     SyscallDef(
-        numbers.SYS_connectx,
-        "connectx",
-        params=[
-            FileDescriptorParam(),
-            PointerParam(),
-            UnsignedParam(),
-            PointerParam(),
-            UnsignedParam(),
-            UnsignedParam(),
-            PointerParam(),
-            PointerParam(),
-        ],
-    ),  # 455
+        numbers.SYS_reboot, "reboot", params=[FlagsParam(REBOOT_FLAGS), StringParam()]
+    ),  # 55
+    SyscallDef(numbers.SYS_swapon, "swapon", params=[]),  # 85
     SyscallDef(
         numbers.SYS_grab_pgo_data,
         "grab_pgo_data",
@@ -67,7 +57,9 @@ MISC_SYSCALLS: list[SyscallDef] = [
         ],
     ),  # 470
     SyscallDef(
-        numbers.SYS_fileport_makeport, "fileport_makeport", params=[IntParam(), PointerParam()]
+        numbers.SYS_fileport_makeport,
+        "fileport_makeport",
+        params=[FileDescriptorParam(), PointerParam()],
     ),  # 473
     SyscallDef(numbers.SYS_fileport_makefd, "fileport_makefd", params=[PointerParam()]),  # 474
     SyscallDef(numbers.SYS_necp_open, "necp_open", params=[IntParam()]),  # 501
@@ -83,22 +75,9 @@ MISC_SYSCALLS: list[SyscallDef] = [
         "csops_audittoken",
         params=[IntParam(), UnsignedParam(), PointerParam(), UnsignedParam(), PointerParam()],
     ),  # 170
-    # Thread self-accounting
     SyscallDef(
         numbers.SYS_thread_selfcounts,
         "thread_selfcounts",
         params=[IntParam(), PointerParam(), UnsignedParam()],
     ),  # 186
-    # Duplicate entry already in file.py
-    SyscallDef(
-        numbers.SYS_fsetattrlist,
-        "fsetattrlist",
-        params=[
-            FileDescriptorParam(),
-            PointerParam(),
-            PointerParam(),
-            UnsignedParam(),
-            UnsignedParam(),
-        ],
-    ),  # 229
 ]

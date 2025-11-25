@@ -44,6 +44,34 @@ class ParamDirection(Enum):
     OUT = "out"  # Output parameter (read at syscall exit)
 
 
+@dataclass
+class DecodeContext:
+    """Reusable context for decoding syscall parameters.
+
+    The tracer creates one instance and updates fields between decode() calls
+    to avoid allocations in the hot path.
+
+    Attributes:
+        tracer: The Tracer instance (for accessing no_abbrev, state storage, etc.)
+        process: The lldb process object (for reading memory)
+        raw_value: The raw register value for this argument (updated per arg)
+        all_args: All raw argument values (for cross-references like buffer sizes)
+        at_entry: True if decoding at syscall entry, False at exit
+        return_value: The syscall return value (only available at exit)
+    """
+
+    tracer: Any  # Stable - set once
+    process: Any  # Stable - set once
+    raw_value: int = 0  # Mutable - updated per argument
+    all_args: list[int] = field(default_factory=list)  # Mutable - updated per syscall
+    at_entry: bool = True  # Mutable - updated per syscall phase
+    return_value: int | str | None = None  # Mutable - updated at exit
+
+    def update_for_arg(self, raw_value: int) -> None:
+        """Update context for decoding a specific argument."""
+        self.raw_value = raw_value
+
+
 class Param(ABC):
     """Base class for all syscall parameter decoders.
 
@@ -56,23 +84,12 @@ class Param(ABC):
     """
 
     @abstractmethod
-    def decode(
-        self,
-        tracer: Any,
-        process: Any,
-        raw_value: int,
-        all_args: list[int],
-        *,
-        at_entry: bool,
-    ) -> SyscallArg | None:
+    def decode(self, ctx: DecodeContext) -> SyscallArg | None:
         """Decode a raw register value to a typed SyscallArg.
 
         Args:
-            tracer: The Tracer instance (for accessing no_abbrev, etc.)
-            process: The lldb process object (for reading memory)
-            raw_value: The raw register value for this argument
-            all_args: All raw argument values (for cross-references like buffer sizes)
-            at_entry: True if decoding at syscall entry, False at exit
+            ctx: Decode context containing tracer, process, raw_value, all_args,
+                 at_entry, and return_value
 
         Returns:
             A typed SyscallArg object, or None if not ready to decode yet
@@ -142,50 +159,43 @@ class Param(ABC):
 class IntParam(Param):
     """Parameter decoder for signed integers."""
 
-    def decode(
-        self,
-        tracer: Any,  # noqa: ARG002
-        process: Any,  # noqa: ARG002
-        raw_value: int,
-        all_args: list[int],  # noqa: ARG002
-        *,
-        at_entry: bool,  # noqa: ARG002
-    ) -> SyscallArg:
+    def decode(self, ctx: DecodeContext) -> SyscallArg:
         """Decode signed integer to IntArg."""
-        signed_val = self._to_signed_int(raw_value)
+        signed_val = self._to_signed_int(ctx.raw_value)
         return IntArg(signed_val)
 
 
 class UnsignedParam(Param):
     """Parameter decoder for unsigned integers (size_t, off_t, etc.)."""
 
-    def decode(
-        self,
-        tracer: Any,  # noqa: ARG002
-        process: Any,  # noqa: ARG002
-        raw_value: int,
-        all_args: list[int],  # noqa: ARG002
-        *,
-        at_entry: bool,  # noqa: ARG002
-    ) -> SyscallArg:
+    def decode(self, ctx: DecodeContext) -> SyscallArg:
         """Decode unsigned integer to UnsignedArg."""
-        return UnsignedArg(raw_value)
+        return UnsignedArg(ctx.raw_value)
+
+
+class UidGidParam(Param):
+    """Parameter decoder for uid_t/gid_t values.
+
+    uid_t and gid_t are unsigned 32-bit integers, but -1 (0xFFFFFFFF) is a
+    special sentinel value meaning "don't change". We display this as -1
+    rather than 4294967295 for clarity.
+    """
+
+    def decode(self, ctx: DecodeContext) -> SyscallArg:
+        """Decode uid_t/gid_t to IntArg, treating 0xFFFFFFFF as -1."""
+        # Check if this is the -1 sentinel (0xFFFFFFFF in 32-bit)
+        if ctx.raw_value == 0xFFFFFFFF:
+            return IntArg(-1)
+        # Otherwise treat as unsigned
+        return UnsignedArg(ctx.raw_value)
 
 
 class StringParam(Param):
     """Parameter decoder for null-terminated strings."""
 
-    def decode(
-        self,
-        tracer: Any,  # noqa: ARG002
-        process: Any,
-        raw_value: int,
-        all_args: list[int],  # noqa: ARG002
-        *,
-        at_entry: bool,  # noqa: ARG002
-    ) -> SyscallArg:
+    def decode(self, ctx: DecodeContext) -> SyscallArg:
         """Decode string pointer to StringArg."""
-        string_val = self._read_string(process, raw_value)
+        string_val = self._read_string(ctx.process, ctx.raw_value)
         return StringArg(string_val)
 
 
@@ -204,19 +214,11 @@ class ArrayOfStringsParam(Param):
         """
         self.max_strings = max_strings
 
-    def decode(
-        self,
-        tracer: Any,  # noqa: ARG002
-        process: Any,
-        raw_value: int,
-        all_args: list[int],  # noqa: ARG002
-        *,
-        at_entry: bool,  # noqa: ARG002
-    ) -> SyscallArg:
+    def decode(self, ctx: DecodeContext) -> SyscallArg:
         """Decode array of string pointers to StringArrayArg."""
         import lldb  # noqa: PLC0415 - lazy import required for system Python
 
-        if raw_value == 0:
+        if ctx.raw_value == 0:
             return PointerArg(0)
 
         strings = []
@@ -225,8 +227,8 @@ class ArrayOfStringsParam(Param):
 
         for i in range(self.max_strings):
             # Read pointer at index i
-            ptr_address = raw_value + (i * pointer_size)
-            ptr_data = process.ReadMemory(ptr_address, pointer_size, error)
+            ptr_address = ctx.raw_value + (i * pointer_size)
+            ptr_data = ctx.process.ReadMemory(ptr_address, pointer_size, error)
 
             if error.Fail():
                 # Can't read more pointers
@@ -239,7 +241,7 @@ class ArrayOfStringsParam(Param):
             if ptr_value == 0:
                 break
 
-            string_val = self._read_string(process, ptr_value)
+            string_val = self._read_string(ctx.process, ptr_value)
             strings.append(string_val)
 
         return StringArrayArg(strings)
@@ -251,22 +253,13 @@ class DirFdParam(Param):
     File descriptors are 32-bit signed integers on macOS.
     """
 
-    def decode(
-        self,
-        tracer: Any,
-        process: Any,  # noqa: ARG002
-        raw_value: int,
-        all_args: list[int],  # noqa: ARG002
-        *,
-        at_entry: bool,  # noqa: ARG002
-    ) -> SyscallArg:
+    def decode(self, ctx: DecodeContext) -> SyscallArg:
         """Decode directory fd to IntArg with symbolic AT_FDCWD."""
-
         # File descriptors are 32-bit signed integers
-        signed_val = ctypes.c_int32(raw_value & 0xFFFFFFFF).value
+        signed_val = ctypes.c_int32(ctx.raw_value & 0xFFFFFFFF).value
 
-        if tracer.no_abbrev:
-            return IntArg(signed_val, f"0x{raw_value:x}")
+        if ctx.tracer.no_abbrev:
+            return IntArg(signed_val, f"0x{ctx.raw_value:x}")
 
         # Decode AT_FDCWD
         if signed_val == AT_FDCWD:
@@ -280,62 +273,38 @@ class FlockOpParam(Param):
     Decodes LOCK_SH, LOCK_EX, LOCK_UN, and LOCK_NB flags.
     """
 
-    def decode(
-        self,
-        tracer: Any,
-        process: Any,  # noqa: ARG002
-        raw_value: int,
-        all_args: list[int],  # noqa: ARG002
-        *,
-        at_entry: bool,  # noqa: ARG002
-    ) -> SyscallArg:
+    def decode(self, ctx: DecodeContext) -> SyscallArg:
         """Decode flock operation to FlagsArg with symbolic names."""
-        if tracer.no_abbrev:
-            return IntArg(raw_value, f"0x{raw_value:x}")
+        if ctx.tracer.no_abbrev:
+            return IntArg(ctx.raw_value, f"0x{ctx.raw_value:x}")
 
         flags = []
         # LOCK_NB is bit 2 (value 4), can be combined with other operations
-        base_op = raw_value & ~4
+        base_op = ctx.raw_value & ~4
         if base_op in FLOCK_OPS:
             flags.append(FLOCK_OPS[base_op])
-        if raw_value & 4:
+        if ctx.raw_value & 4:
             flags.append("LOCK_NB")
 
         if flags:
-            return FlagsArg(raw_value, "|".join(flags))
-        return IntArg(raw_value, None)
+            return FlagsArg(ctx.raw_value, "|".join(flags))
+        return IntArg(ctx.raw_value, None)
 
 
 class PointerParam(Param):
     """Parameter decoder for raw pointers/addresses."""
 
-    def decode(
-        self,
-        tracer: Any,  # noqa: ARG002
-        process: Any,  # noqa: ARG002
-        raw_value: int,
-        all_args: list[int],  # noqa: ARG002
-        *,
-        at_entry: bool,  # noqa: ARG002
-    ) -> SyscallArg:
+    def decode(self, ctx: DecodeContext) -> SyscallArg:
         """Decode pointer to PointerArg."""
-        return PointerArg(raw_value)
+        return PointerArg(ctx.raw_value)
 
 
 class FileDescriptorParam(Param):
     """Parameter decoder for file descriptors."""
 
-    def decode(
-        self,
-        tracer: Any,  # noqa: ARG002
-        process: Any,  # noqa: ARG002
-        raw_value: int,
-        all_args: list[int],  # noqa: ARG002
-        *,
-        at_entry: bool,  # noqa: ARG002
-    ) -> SyscallArg:
+    def decode(self, ctx: DecodeContext) -> SyscallArg:
         """Decode file descriptor to FileDescriptorArg."""
-        signed_val = self._to_signed_int(raw_value)
+        signed_val = self._to_signed_int(ctx.raw_value)
         return FileDescriptorArg(signed_val)
 
 
@@ -343,28 +312,20 @@ def FlagsParam(flag_map: dict[int, str]) -> Param:  # noqa: N802
     """Factory function to create a Param for decoding flag bitmasks."""
 
     class _FlagsParam(Param):
-        def decode(
-            self,
-            tracer: Any,
-            process: Any,  # noqa: ARG002
-            raw_value: int,
-            all_args: list[int],  # noqa: ARG002
-            *,
-            at_entry: bool,  # noqa: ARG002
-        ) -> SyscallArg:
+        def decode(self, ctx: DecodeContext) -> SyscallArg:
             """Decode flags to FlagsArg with symbolic representation."""
-            if tracer.no_abbrev:
+            if ctx.tracer.no_abbrev:
                 # With --no-abbrev, FlagsArg will format as hex automatically
-                return FlagsArg(raw_value, None)
+                return FlagsArg(ctx.raw_value, None)
 
-            if raw_value == 0:
+            if ctx.raw_value == 0:
                 # Check if there's a special symbolic name for 0 (e.g., PROT_NONE)
                 symbolic_zero = flag_map.get(0, "0")
                 return FlagsArg(0, symbolic_zero)
 
-            flags = [name for val, name in flag_map.items() if val > 0 and (raw_value & val)]
+            flags = [name for val, name in flag_map.items() if val > 0 and (ctx.raw_value & val)]
             symbolic = "|".join(flags) if flags else None
-            return FlagsArg(raw_value, symbolic)
+            return FlagsArg(ctx.raw_value, symbolic)
 
     return _FlagsParam()
 
@@ -379,20 +340,12 @@ def ConstParam(const_map: dict[int, str]) -> Param:  # noqa: N802
     """
 
     class _ConstParam(Param):
-        def decode(
-            self,
-            tracer: Any,
-            process: Any,  # noqa: ARG002
-            raw_value: int,
-            all_args: list[int],  # noqa: ARG002
-            *,
-            at_entry: bool,  # noqa: ARG002
-        ) -> SyscallArg:
+        def decode(self, ctx: DecodeContext) -> SyscallArg:
             """Decode constant to IntArg with symbolic representation."""
             # All constant parameters are 32-bit int
-            signed_val = self._to_signed_int32(raw_value)
+            signed_val = self._to_signed_int32(ctx.raw_value)
 
-            if tracer.no_abbrev:
+            if ctx.tracer.no_abbrev:
                 return IntArg(signed_val, None)
 
             symbolic = const_map.get(signed_val)
@@ -405,21 +358,13 @@ def CustomParam(decode_func: Callable[[int], str]) -> Param:  # noqa: N802
     """Factory function to create a Param using a custom decoder function."""
 
     class _CustomParam(Param):
-        def decode(
-            self,
-            tracer: Any,
-            process: Any,  # noqa: ARG002
-            raw_value: int,
-            all_args: list[int],  # noqa: ARG002
-            *,
-            at_entry: bool,  # noqa: ARG002
-        ) -> SyscallArg:
+        def decode(self, ctx: DecodeContext) -> SyscallArg:
             """Decode using custom function to IntArg with symbolic representation."""
-            signed_val = self._to_signed_int(raw_value)
+            signed_val = self._to_signed_int(ctx.raw_value)
 
-            if tracer.no_abbrev:
+            if ctx.tracer.no_abbrev:
                 # With --no-abbrev, show as hex
-                return IntArg(signed_val, f"0x{raw_value:x}")
+                return IntArg(signed_val, f"0x{ctx.raw_value:x}")
 
             symbolic = decode_func(signed_val)
             # If the decoder returns the same as str(value), don't use it as symbolic
@@ -433,20 +378,12 @@ def CustomParam(decode_func: Callable[[int], str]) -> Param:  # noqa: N802
 class OctalParam(Param):
     """Parameter decoder for octal file mode/permissions."""
 
-    def decode(
-        self,
-        tracer: Any,
-        process: Any,  # noqa: ARG002
-        raw_value: int,
-        all_args: list[int],  # noqa: ARG002
-        *,
-        at_entry: bool,  # noqa: ARG002
-    ) -> SyscallArg:
+    def decode(self, ctx: DecodeContext) -> SyscallArg:
         """Decode mode to IntArg with octal representation."""
-        signed_val = self._to_signed_int(raw_value)
-        if tracer.no_abbrev:
+        signed_val = self._to_signed_int(ctx.raw_value)
+        if ctx.tracer.no_abbrev:
             # With --no-abbrev, show as hex (like strace -X)
-            return IntArg(signed_val, f"0x{raw_value:x}")
+            return IntArg(signed_val, f"0x{ctx.raw_value:x}")
 
         # Format as octal with leading 0
         symbolic = f"0{signed_val:o}" if signed_val >= 0 else None
@@ -495,36 +432,30 @@ class StructParamBase(Param):
     # Subclasses must set this in __init__
     direction: ParamDirection
 
-    def decode(
-        self,
-        tracer: Any,
-        process: Any,
-        raw_value: int,
-        all_args: list[int],  # noqa: ARG002
-        *,
-        at_entry: bool,
-    ) -> SyscallArg | None:
+    def decode(self, ctx: DecodeContext) -> SyscallArg | None:
         """Decode struct pointer to StructArg.
 
         This handles direction filtering and delegates to decode_struct()
         for the actual struct decoding logic.
         """
         # Direction filtering: only decode at appropriate time
-        if at_entry and self.direction != ParamDirection.IN:
-            return PointerArg(raw_value)  # Return as pointer for now
-        if not at_entry and self.direction != ParamDirection.OUT:
+        if ctx.at_entry and self.direction != ParamDirection.IN:
+            return PointerArg(ctx.raw_value)  # Return as pointer for now
+        if not ctx.at_entry and self.direction != ParamDirection.OUT:
             return None  # Already decoded at entry
 
         # Skip NULL pointers
-        if raw_value == 0:
+        if ctx.raw_value == 0:
             return PointerArg(0)
 
         # Decode the struct
-        decoded_fields = self.decode_struct(process, raw_value, no_abbrev=tracer.no_abbrev)
+        decoded_fields = self.decode_struct(
+            ctx.process, ctx.raw_value, no_abbrev=ctx.tracer.no_abbrev
+        )
         if decoded_fields:
             return StructArg(decoded_fields)
 
-        return PointerArg(raw_value)
+        return PointerArg(ctx.raw_value)
 
     def decode_struct(
         self, process: Any, address: int, *, no_abbrev: bool = False
@@ -623,52 +554,54 @@ class BufferParam(Param):
     size_arg_index: int
     direction: ParamDirection
 
-    def decode(
-        self,
-        tracer: Any,
-        process: Any,
-        raw_value: int,
-        all_args: list[int],
-        *,
-        at_entry: bool,
-    ) -> SyscallArg | None:
+    def decode(self, ctx: DecodeContext) -> SyscallArg | None:
         """Decode buffer pointer to BufferArg."""
         import lldb  # noqa: PLC0415 - lazy import required for system Python
 
         # Direction filtering
-        if at_entry and self.direction != ParamDirection.IN:
-            return PointerArg(raw_value)
-        if not at_entry and self.direction != ParamDirection.OUT:
+        if ctx.at_entry and self.direction != ParamDirection.IN:
+            return PointerArg(ctx.raw_value)
+        if not ctx.at_entry and self.direction != ParamDirection.OUT:
             return None
 
         # Skip NULL pointers
-        if raw_value == 0:
+        if ctx.raw_value == 0:
             return PointerArg(0)
 
         # Get size from referenced argument
-        if self.size_arg_index >= len(all_args):
-            return PointerArg(raw_value)
+        if self.size_arg_index >= len(ctx.all_args):
+            return PointerArg(ctx.raw_value)
 
-        size_value = all_args[self.size_arg_index]
+        size_value = ctx.all_args[self.size_arg_index]
         size = size_value
+
+        # For OUT direction at exit, use return value if it's smaller than requested size
+        # (e.g., read() returns actual bytes read, which may be less than buffer size)
+        if (
+            not ctx.at_entry
+            and self.direction == ParamDirection.OUT
+            and isinstance(ctx.return_value, int)
+            and 0 < ctx.return_value < size
+        ):
+            size = ctx.return_value
 
         # Validate size is reasonable (including 0 - LLDB doesn't like 0-byte reads)
         if size <= 0:
-            return PointerArg(raw_value)
+            return PointerArg(ctx.raw_value)
 
         # Cap the size to avoid reading huge buffers (like strace's -s option)
         # Default is 32 bytes like strace, but we allow up to 4096 for large reads
         max_buffer_size = 4096
-        actual_size = min(size, max_buffer_size) if not tracer.no_abbrev else min(size, 65536)
+        actual_size = min(size, max_buffer_size) if not ctx.tracer.no_abbrev else min(size, 65536)
 
         # Read the buffer data
         error = lldb.SBError()
-        data = process.ReadMemory(raw_value, actual_size, error)
+        data = ctx.process.ReadMemory(ctx.raw_value, actual_size, error)
 
         if error.Fail() or not data:
-            return PointerArg(raw_value)
+            return PointerArg(ctx.raw_value)
 
-        return BufferArg(data, raw_value)
+        return BufferArg(data, ctx.raw_value)
 
 
 @dataclass
@@ -702,21 +635,13 @@ class VariantParam(Param):
     skip_for: set[int] = field(default_factory=set)
     skip_when_not_set: int | None = None
 
-    def decode(
-        self,
-        tracer: Any,
-        process: Any,
-        raw_value: int,
-        all_args: list[int],
-        *,
-        at_entry: bool,
-    ) -> SyscallArg | None:
+    def decode(self, ctx: DecodeContext) -> SyscallArg | None:
         """Decode argument based on discriminator value."""
         # Get discriminator value
-        if self.discriminator_index >= len(all_args):
-            return PointerArg(raw_value)
+        if self.discriminator_index >= len(ctx.all_args):
+            return PointerArg(ctx.raw_value)
 
-        disc_value = all_args[self.discriminator_index]
+        disc_value = ctx.all_args[self.discriminator_index]
 
         # Skip if discriminator says this arg doesn't exist (exact match)
         if disc_value in self.skip_for:
@@ -729,10 +654,10 @@ class VariantParam(Param):
         # Get the right param for this discriminator value
         param = self.variants.get(disc_value, self.default_param)
         if param is None:
-            return PointerArg(raw_value)
+            return PointerArg(ctx.raw_value)
 
         # Decode using the selected param
-        return param.decode(tracer, process, raw_value, all_args, at_entry=at_entry)
+        return param.decode(ctx)
 
 
 @dataclass

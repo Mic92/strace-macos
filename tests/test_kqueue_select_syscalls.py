@@ -96,7 +96,10 @@ class TestKqueueSelectSyscalls(unittest.TestCase):
 
         # Check filter-specific flags decoding (NOTE_*)
         has_note_flags = (
-            "NOTE_WRITE" in output or "NOTE_DELETE" in output or "NOTE_USECONDS" in output
+            "NOTE_WRITE" in output
+            or "NOTE_DELETE" in output
+            or "NOTE_USECONDS" in output
+            or "NOTE_NSECONDS" in output
         )
         assert has_note_flags, f"kevent should decode NOTE_* filter-specific flags, got: {output}"
 
@@ -180,6 +183,74 @@ class TestKqueueSelectSyscalls(unittest.TestCase):
             or "POLLHUP" in output
         )
         assert has_events, f"poll should decode POLL* event flags, got: {output}"
+
+    def test_kevent_return_value_limits_output_regression(self) -> None:
+        """Regression test for issue #15: kevent should only show events up to return value count.
+
+        If kevent returns 2 events but the buffer can hold 4, output should only show 2 events.
+        """
+        kevent_calls = sth.filter_syscalls(self.syscalls, "kevent")
+        sth.assert_min_call_count(kevent_calls, 1, "kevent")
+
+        # Find a kevent call with eventlist
+        for call in kevent_calls:
+            if call.get("return", 0) > 0 and len(call.get("args", [])) >= 5:
+                # Arg 3 is the eventlist (output array)
+                eventlist = call["args"][3]
+                if isinstance(eventlist, list):
+                    # Number of events in output should match return value
+                    return_value = call["return"]
+                    assert len(eventlist) == return_value, (
+                        f"kevent should only show {return_value} events (return value), "
+                        f"got {len(eventlist)} events: {eventlist}"
+                    )
+                    # Found and verified, test passes
+                    return
+
+        # If we didn't find a suitable kevent call, that's fine - test passes
+        # (the fixture might not trigger this particular case)
+
+    def test_kevent_fflags_filter_specific_regression(self) -> None:
+        """Regression test for issue #16: kevent fflags should be decoded based on filter type.
+
+        EVFILT_TIMER with fflags=0x02 should show NOTE_USECONDS, not NOTE_WRITE (a VNODE flag).
+        Each filter type should use its own NOTE_* flag namespace.
+        """
+        kevent_calls = sth.filter_syscalls(self.syscalls, "kevent")
+        sth.assert_min_call_count(kevent_calls, 1, "kevent")
+
+        # Find kevent calls with changelist containing EVFILT_TIMER with fflags
+        found_timer_with_fflags = False
+        for call in kevent_calls:
+            if len(call.get("args", [])) >= 2:
+                # Arg 1 is the changelist (input array)
+                changelist = call["args"][1]
+                if isinstance(changelist, list):
+                    for event in changelist:
+                        if isinstance(event, dict) and event.get("filter") == "EVFILT_TIMER":
+                            # Only check events that have fflags set
+                            if "fflags" not in event:
+                                continue
+                            found_timer_with_fflags = True
+                            fflags = event.get("fflags", "")
+                            # Should be timer-specific flags, not VNODE flags
+                            assert "NOTE_WRITE" not in str(fflags), (
+                                f"EVFILT_TIMER should not have NOTE_WRITE (that's a VNODE flag), "
+                                f"got fflags={fflags} in event: {event}"
+                            )
+                            # Should contain timer-specific flags
+                            is_timer_flag = any(
+                                flag in str(fflags)
+                                for flag in ["NOTE_SECONDS", "NOTE_USECONDS", "NOTE_NSECONDS"]
+                            )
+                            assert is_timer_flag, (
+                                f"EVFILT_TIMER should have timer-specific NOTE_* flags, "
+                                f"got fflags={fflags} in event: {event}"
+                            )
+
+        assert found_timer_with_fflags, (
+            "Test should have at least one EVFILT_TIMER event with fflags"
+        )
 
 
 if __name__ == "__main__":

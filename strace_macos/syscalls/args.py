@@ -137,12 +137,37 @@ class StructArg(SyscallArg):
 
         field_strs = []
         for name, value in self.fields.items():
-            if isinstance(value, str):
+            if isinstance(value, list):
+                # Format list of dicts as [{key=val, ...}, ...]
+                formatted_list = self._format_list(value)
+                field_strs.append(f"{name}={formatted_list}")
+            elif isinstance(value, str):
                 field_strs.append(f"{name}={value}")
             else:
                 field_strs.append(f"{name}={value}")
 
         return "{" + ", ".join(field_strs) + "}"
+
+    def _format_list(self, lst: list) -> str:
+        """Format a list of items (usually dicts) for text output."""
+        if not lst:
+            return "[]"
+
+        formatted_items = []
+        for item in lst:
+            if isinstance(item, dict):
+                # Format dict as {key=val, key=val, ...}
+                item_strs = []
+                for k, v in item.items():
+                    if isinstance(v, str) and v not in {"?", "NULL"}:
+                        item_strs.append(f'{k}="{v}"')
+                    else:
+                        item_strs.append(f"{k}={v}")
+                formatted_items.append("{" + ", ".join(item_strs) + "}")
+            else:
+                formatted_items.append(str(item))
+
+        return "[" + ", ".join(formatted_items) + "]"
 
 
 class BufferArg(SyscallArg):
@@ -231,7 +256,8 @@ class StructArrayArg(SyscallArg):
                 # Dictionary with fields - format each field
                 field_strs = []
                 for key, value in item.items():
-                    if isinstance(value, str) and value != "?":
+                    # For text output, add quotes around string values
+                    if isinstance(value, str) and value not in {"?", "NULL"}:
                         field_strs.append(f'{key}="{value}"')
                     else:
                         field_strs.append(f"{key}={value}")

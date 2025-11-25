@@ -18,6 +18,8 @@ from strace_macos.syscalls.definitions import (
     UnsignedParam,
 )
 from strace_macos.syscalls.struct_params import (
+    FdPairParam,
+    IntPtrParam,
     MsghdrParam,
     SockaddrParam,
 )
@@ -38,7 +40,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
         "recvmsg",
         params=[
             FileDescriptorParam(),
-            MsghdrParam(ParamDirection.IN),
+            MsghdrParam(ParamDirection.OUT),
             FlagsParam(MSG_FLAGS),
         ],
     ),  # 27
@@ -59,8 +61,8 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
             BufferParam(size_arg_index=2, direction=ParamDirection.OUT),
             UnsignedParam(),
             FlagsParam(MSG_FLAGS),
-            PointerParam(),
-            PointerParam(),
+            SockaddrParam(ParamDirection.OUT),
+            IntPtrParam(ParamDirection.OUT),
         ],
     ),  # 29
     SyscallDef(
@@ -69,7 +71,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
         params=[
             FileDescriptorParam(),
             SockaddrParam(ParamDirection.OUT),
-            PointerParam(),
+            IntPtrParam(ParamDirection.OUT),
         ],
     ),  # 30
     SyscallDef(
@@ -78,7 +80,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
         params=[
             FileDescriptorParam(),
             SockaddrParam(ParamDirection.OUT),
-            PointerParam(),
+            IntPtrParam(ParamDirection.OUT),
         ],
     ),  # 31
     SyscallDef(
@@ -87,7 +89,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
         params=[
             FileDescriptorParam(),
             SockaddrParam(ParamDirection.OUT),
-            PointerParam(),
+            IntPtrParam(ParamDirection.OUT),
         ],
     ),  # 32
     SyscallDef(
@@ -124,7 +126,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
             FileDescriptorParam(),
             ConstParam(SOL_CONSTANTS),
             ConstParam(SO_OPTIONS),
-            PointerParam(),
+            BufferParam(size_arg_index=4, direction=ParamDirection.IN),
             UnsignedParam(),
         ],
     ),  # 105
@@ -137,7 +139,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
             ConstParam(SOL_CONSTANTS),
             ConstParam(SO_OPTIONS),
             PointerParam(),
-            PointerParam(),
+            IntPtrParam(ParamDirection.OUT),
         ],
     ),  # 118
     SyscallDef(
@@ -148,7 +150,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
             BufferParam(size_arg_index=2, direction=ParamDirection.IN),
             UnsignedParam(),
             FlagsParam(MSG_FLAGS),
-            PointerParam(),
+            SockaddrParam(ParamDirection.IN),
             UnsignedParam(),
         ],
     ),  # 133
@@ -164,7 +166,7 @@ NETWORK_SYSCALLS: list[SyscallDef] = [
             ConstParam(AF_CONSTANTS),
             ConstParam(SOCK_CONSTANTS),
             ConstParam(IPPROTO_CONSTANTS),
-            PointerParam(),
+            FdPairParam(),
         ],
     ),  # 135
     SyscallDef(

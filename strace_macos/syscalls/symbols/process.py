@@ -60,3 +60,22 @@ SIG_HOW: dict[int, str] = {
     2: "SIG_UNBLOCK",
     3: "SIG_SETMASK",
 }
+
+# reboot() flags
+REBOOT_FLAGS: dict[int, str] = {
+    0x00: "RB_AUTOBOOT",
+    0x01: "RB_ASKNAME",
+    0x02: "RB_SINGLE",
+    0x04: "RB_NOSYNC",
+    0x08: "RB_HALT",
+    0x10: "RB_INITNAME",
+    0x20: "RB_DFLTROOT",
+    0x40: "RB_ALTBOOT",
+    0x80: "RB_UNIPROC",
+    0x100: "RB_SAFEBOOT",
+    0x200: "RB_UPSDELAY",
+    0x400: "RB_QUICK",
+    0x800: "RB_PANIC",
+    0x1000: "RB_PANIC_ZPRINT",
+    0x2000: "RB_PANIC_FORCERESET",
+}

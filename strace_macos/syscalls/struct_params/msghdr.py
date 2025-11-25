@@ -159,7 +159,7 @@ class MsghdrParam(StructParamBase):
             size: Buffer size
 
         Returns:
-            Formatted buffer string
+            Formatted buffer string WITHOUT quotes (quotes added by display formatter)
         """
         if address == 0 or size <= 0:
             return "?"
@@ -172,6 +172,7 @@ class MsghdrParam(StructParamBase):
         if error.Fail() or not buf_data:
             return "?"
 
+        # Return unquoted escaped string (quotes are added by the formatter when displaying)
         return BufferArg.format_buffer(buf_data, max_display=32)
 
 

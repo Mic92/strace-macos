@@ -8,6 +8,7 @@ from __future__ import annotations
 from strace_macos.syscalls import numbers
 from strace_macos.syscalls.definitions import (
     ArrayOfStringsParam,
+    BufferParam,
     ConstParam,
     FlagsParam,
     IntParam,
@@ -15,8 +16,10 @@ from strace_macos.syscalls.definitions import (
     PointerParam,
     StringParam,
     SyscallDef,
+    UidGidParam,
     UnsignedParam,
 )
+from strace_macos.syscalls.struct_params import IntArrayParam, IntPtrParam
 from strace_macos.syscalls.struct_params.process_structs import (
     RlimitParam,
     RusageParam,
@@ -26,7 +29,6 @@ from strace_macos.syscalls.symbols.process import (
     PRIO_WHICH,
     RLIMIT_RESOURCES,
     RUSAGE_WHO,
-    SIG_HOW,
     WAIT_OPTIONS,
     WAITID_OPTIONS,
 )
@@ -38,21 +40,25 @@ PROCESS_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_wait4,
         "wait4",
-        params=[IntParam(), PointerParam(), FlagsParam(WAIT_OPTIONS), PointerParam()],
+        params=[
+            IntParam(),
+            IntPtrParam(ParamDirection.OUT),
+            FlagsParam(WAIT_OPTIONS),
+            RusageParam(ParamDirection.OUT),
+        ],
     ),  # 7
     SyscallDef(numbers.SYS_getpid, "getpid", params=[]),  # 20
-    SyscallDef(numbers.SYS_setuid, "setuid", params=[UnsignedParam()]),  # 23
+    SyscallDef(numbers.SYS_setuid, "setuid", params=[UidGidParam()]),  # 23
     SyscallDef(numbers.SYS_getuid, "getuid", params=[]),  # 24
     SyscallDef(numbers.SYS_geteuid, "geteuid", params=[]),  # 25
     SyscallDef(numbers.SYS_getppid, "getppid", params=[]),  # 39
     SyscallDef(numbers.SYS_getegid, "getegid", params=[]),  # 43
     SyscallDef(numbers.SYS_getgid, "getgid", params=[]),  # 47
     SyscallDef(
-        numbers.SYS_sigprocmask,
-        "sigprocmask",
-        params=[ConstParam(SIG_HOW), PointerParam(), PointerParam()],
-    ),  # 48
-    SyscallDef(numbers.SYS_getlogin, "getlogin", params=[PointerParam(), UnsignedParam()]),  # 49
+        numbers.SYS_getlogin,
+        "getlogin",
+        params=[BufferParam(size_arg_index=1, direction=ParamDirection.OUT), UnsignedParam()],
+    ),  # 49
     SyscallDef(numbers.SYS_setlogin, "setlogin", params=[StringParam()]),  # 50
     SyscallDef(
         numbers.SYS_execve,
@@ -70,12 +76,20 @@ PROCESS_SYSCALLS: list[SyscallDef] = [
         "oslog_coproc",
         params=[PointerParam(), UnsignedParam(), UnsignedParam()],
     ),  # 68
-    SyscallDef(numbers.SYS_getgroups, "getgroups", params=[UnsignedParam(), PointerParam()]),  # 79
-    SyscallDef(numbers.SYS_setgroups, "setgroups", params=[UnsignedParam(), PointerParam()]),  # 80
+    SyscallDef(
+        numbers.SYS_getgroups,
+        "getgroups",
+        params=[UnsignedParam(), IntArrayParam(count_arg_index=0, direction=ParamDirection.OUT)],
+    ),  # 79
+    SyscallDef(
+        numbers.SYS_setgroups,
+        "setgroups",
+        params=[UnsignedParam(), IntArrayParam(count_arg_index=0, direction=ParamDirection.IN)],
+    ),  # 80
     SyscallDef(numbers.SYS_getpgrp, "getpgrp", params=[]),  # 81
     SyscallDef(numbers.SYS_setpgid, "setpgid", params=[IntParam(), IntParam()]),  # 82
-    SyscallDef(numbers.SYS_setreuid, "setreuid", params=[UnsignedParam(), UnsignedParam()]),  # 126
-    SyscallDef(numbers.SYS_setregid, "setregid", params=[UnsignedParam(), UnsignedParam()]),  # 127
+    SyscallDef(numbers.SYS_setreuid, "setreuid", params=[UidGidParam(), UidGidParam()]),  # 126
+    SyscallDef(numbers.SYS_setregid, "setregid", params=[UidGidParam(), UidGidParam()]),  # 127
     SyscallDef(
         numbers.SYS_setpriority,
         "setpriority",
@@ -107,9 +121,9 @@ PROCESS_SYSCALLS: list[SyscallDef] = [
             FlagsParam(WAITID_OPTIONS),
         ],
     ),  # 173
-    SyscallDef(numbers.SYS_setgid, "setgid", params=[UnsignedParam()]),  # 181
-    SyscallDef(numbers.SYS_setegid, "setegid", params=[UnsignedParam()]),  # 182
-    SyscallDef(numbers.SYS_seteuid, "seteuid", params=[UnsignedParam()]),  # 183
+    SyscallDef(numbers.SYS_setgid, "setgid", params=[UidGidParam()]),  # 181
+    SyscallDef(numbers.SYS_setegid, "setegid", params=[UidGidParam()]),  # 182
+    SyscallDef(numbers.SYS_seteuid, "seteuid", params=[UidGidParam()]),  # 183
     SyscallDef(
         numbers.SYS_getrlimit,
         "getrlimit",
@@ -135,7 +149,7 @@ PROCESS_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_posix_spawn,
         "posix_spawn",
         params=[
-            PointerParam(),  # pid_t *pid
+            IntPtrParam(ParamDirection.OUT),  # pid_t *pid
             StringParam(),  # const char *path
             PointerParam(),  # const posix_spawn_file_actions_t *file_actions
             PointerParam(),  # const posix_spawnattr_t *attrp
@@ -147,7 +161,6 @@ PROCESS_SYSCALLS: list[SyscallDef] = [
     SyscallDef(numbers.SYS_sem_trywait, "sem_trywait", params=[PointerParam()]),  # 272
     SyscallDef(numbers.SYS_getsid, "getsid", params=[IntParam()]),  # 310
     SyscallDef(numbers.SYS_issetugid, "issetugid", params=[]),  # 327
-    SyscallDef(numbers.SYS___sigwait, "__sigwait", params=[PointerParam(), PointerParam()]),  # 330
     SyscallDef(
         numbers.SYS___semwait_signal,
         "__semwait_signal",
@@ -168,7 +181,7 @@ PROCESS_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS___mac_execve,
         "__mac_execve",
-        params=[StringParam(), PointerParam(), PointerParam(), PointerParam()],
+        params=[StringParam(), ArrayOfStringsParam(), ArrayOfStringsParam(), PointerParam()],
     ),  # 380
     SyscallDef(numbers.SYS___mac_get_proc, "__mac_get_proc", params=[PointerParam()]),  # 386
     SyscallDef(numbers.SYS___mac_set_proc, "__mac_set_proc", params=[PointerParam()]),  # 387

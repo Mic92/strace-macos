@@ -22,13 +22,15 @@ class AiocbStruct(ctypes.Structure):
 
     _fields_: ClassVar[list[tuple[str, type]]] = [
         ("aio_fildes", ctypes.c_int),  # File descriptor
+        ("_pad1", ctypes.c_byte * 4),  # Padding after aio_fildes
         ("aio_offset", ctypes.c_int64),  # File offset (off_t)
         ("aio_buf", ctypes.c_void_p),  # Location of buffer
         ("aio_nbytes", ctypes.c_size_t),  # Length of transfer
         ("aio_reqprio", ctypes.c_int),  # Request priority offset
-        # aio_sigevent is struct sigevent - we skip detailed decoding for now
-        ("aio_sigevent_notify", ctypes.c_int),  # First field of sigevent
-        ("aio_sigevent_padding", ctypes.c_byte * 60),  # Rest of sigevent (approximate)
+        ("_pad2", ctypes.c_byte * 4),  # Padding before sigevent (8-byte alignment)
+        # aio_sigevent is struct sigevent (32 bytes total on macOS)
+        ("aio_sigevent_notify", ctypes.c_int),  # First field of sigevent (4 bytes)
+        ("aio_sigevent_padding", ctypes.c_byte * 28),  # Rest of sigevent (28 bytes)
         ("aio_lio_opcode", ctypes.c_int),  # Operation to be performed
     ]
 
@@ -48,6 +50,8 @@ class AiocbParam(StructParamBase):
 
     # Exclude internal padding and detailed sigevent decoding
     excluded_fields: ClassVar[set[str]] = {
+        "_pad1",
+        "_pad2",
         "aio_sigevent_notify",
         "aio_sigevent_padding",
         "aio_reqprio",  # Usually 0, not very interesting

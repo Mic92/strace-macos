@@ -8,7 +8,13 @@ from typing import Any, ClassVar
 
 from strace_macos.lldb_loader import load_lldb_module
 from strace_macos.syscalls.args import PointerArg, StringArg, StructArrayArg
-from strace_macos.syscalls.definitions import Param, ParamDirection, StructParamBase, SyscallArg
+from strace_macos.syscalls.definitions import (
+    DecodeContext,
+    Param,
+    ParamDirection,
+    StructParamBase,
+    SyscallArg,
+)
 from strace_macos.syscalls.symbols.ipc import POLL_EVENTS
 from strace_macos.syscalls.symbols.kqueue import (
     EV_FLAGS,
@@ -18,6 +24,12 @@ from strace_macos.syscalls.symbols.kqueue import (
     NOTE_USER_FLAGS,
     NOTE_VNODE_FLAGS,
 )
+
+# Filter type constants for fflags decoding
+EVFILT_VNODE = -4
+EVFILT_PROC = -5
+EVFILT_TIMER = -7
+EVFILT_USER = -10
 
 
 class KeventStruct(ctypes.Structure):
@@ -55,39 +67,42 @@ class KeventParam(Param):
     count_arg_index: int
     direction: ParamDirection
 
-    def decode(
-        self,
-        tracer: Any,  # noqa: ARG002
-        process: Any,
-        raw_value: int,
-        all_args: list[int],
-        *,
-        at_entry: bool,
-    ) -> SyscallArg | None:
+    def decode(self, ctx: DecodeContext) -> SyscallArg | None:
         """Decode kevent array parameter."""
         # Direction filtering
-        if at_entry and self.direction != ParamDirection.IN:
-            return PointerArg(raw_value)
-        if not at_entry and self.direction != ParamDirection.OUT:
+        if ctx.at_entry and self.direction != ParamDirection.IN:
+            return PointerArg(ctx.raw_value)
+        if not ctx.at_entry and self.direction != ParamDirection.OUT:
             return None
 
-        if raw_value == 0:
+        if ctx.raw_value == 0:
             return PointerArg(0)
 
         # Get count from specified argument
-        if self.count_arg_index >= len(all_args):
-            return PointerArg(raw_value)
+        if self.count_arg_index >= len(ctx.all_args):
+            return PointerArg(ctx.raw_value)
 
-        count = all_args[self.count_arg_index]
+        count = ctx.all_args[self.count_arg_index]
+
+        # For OUT direction at exit, use return value as count if available
+        # (kevent returns the actual number of events filled in)
+        if (
+            not ctx.at_entry
+            and self.direction == ParamDirection.OUT
+            and isinstance(ctx.return_value, int)
+            and 0 < ctx.return_value < count
+        ):
+            count = ctx.return_value
+
         if count <= 0 or count > 1000:  # Safety limit
-            return PointerArg(raw_value)
+            return PointerArg(ctx.raw_value)
 
         # Decode the kevent array
-        kevent_list = self._decode_array(process, raw_value, count)
+        kevent_list = self._decode_array(ctx.process, ctx.raw_value, count)
         if kevent_list:
             return StructArrayArg(kevent_list)
 
-        return PointerArg(raw_value)
+        return PointerArg(ctx.raw_value)
 
     def _decode_array(
         self,
@@ -125,7 +140,7 @@ class KeventParam(Param):
 
             # Only show fflags if non-zero
             if kev.fflags != 0:
-                entry["fflags"] = decode_kevent_fflags(kev.fflags)
+                entry["fflags"] = decode_kevent_fflags(kev.fflags, kev.filter)
 
             # For IN direction (changelist), skip data/udata to reduce noise
             # For OUT direction (eventlist), show data if non-zero
@@ -155,22 +170,46 @@ def decode_kevent_flags(value: int) -> str:
     return "|".join(flags) if flags else f"0x{value:x}"
 
 
-def decode_kevent_fflags(value: int) -> str:
-    """Decode kevent filter-specific flags."""
+def decode_kevent_fflags(value: int, filter_value: int) -> str:
+    """Decode kevent filter-specific flags based on filter type.
+
+    Args:
+        value: The fflags value to decode
+        filter_value: The filter type (determines which flag map to use)
+
+    Returns:
+        Symbolic representation of fflags or raw value if unknown
+    """
     if value == 0:
         return "0"
 
-    # Try each flag map
-    for flag_map in [NOTE_VNODE_FLAGS, NOTE_PROC_FLAGS, NOTE_TIMER_FLAGS, NOTE_USER_FLAGS]:
-        flags = []
-        remaining = value
-        for flag_val, flag_name in sorted(flag_map.items()):
-            if value & flag_val:
-                flags.append(flag_name)
-                remaining &= ~flag_val
-        if flags and remaining == 0:
-            return "|".join(flags)
+    # Select flag map based on filter type
+    flag_map = None
+    if filter_value == EVFILT_VNODE:  # -4
+        flag_map = NOTE_VNODE_FLAGS
+    elif filter_value == EVFILT_PROC:  # -5
+        flag_map = NOTE_PROC_FLAGS
+    elif filter_value == EVFILT_TIMER:  # -7
+        flag_map = NOTE_TIMER_FLAGS
+    elif filter_value == EVFILT_USER:  # -10
+        flag_map = NOTE_USER_FLAGS
 
+    if flag_map is None:
+        # Unknown filter type, show raw value
+        return str(value)
+
+    # Decode flags using the appropriate map
+    flags = []
+    remaining = value
+    for flag_val, flag_name in sorted(flag_map.items()):
+        if value & flag_val:
+            flags.append(flag_name)
+            remaining &= ~flag_val
+
+    if flags and remaining == 0:
+        return "|".join(flags)
+
+    # If there are unrecognized bits, show everything as raw value
     return str(value)
 
 
@@ -212,39 +251,42 @@ class Kevent64Param(Param):
     count_arg_index: int
     direction: ParamDirection
 
-    def decode(
-        self,
-        tracer: Any,  # noqa: ARG002
-        process: Any,
-        raw_value: int,
-        all_args: list[int],
-        *,
-        at_entry: bool,
-    ) -> SyscallArg | None:
+    def decode(self, ctx: DecodeContext) -> SyscallArg | None:
         """Decode kevent64 array parameter."""
         # Direction filtering
-        if at_entry and self.direction != ParamDirection.IN:
-            return PointerArg(raw_value)
-        if not at_entry and self.direction != ParamDirection.OUT:
+        if ctx.at_entry and self.direction != ParamDirection.IN:
+            return PointerArg(ctx.raw_value)
+        if not ctx.at_entry and self.direction != ParamDirection.OUT:
             return None
 
-        if raw_value == 0:
+        if ctx.raw_value == 0:
             return PointerArg(0)
 
         # Get count from specified argument
-        if self.count_arg_index >= len(all_args):
-            return PointerArg(raw_value)
+        if self.count_arg_index >= len(ctx.all_args):
+            return PointerArg(ctx.raw_value)
 
-        count = all_args[self.count_arg_index]
+        count = ctx.all_args[self.count_arg_index]
+
+        # For OUT direction at exit, use return value as count if available
+        # (kevent64 returns the actual number of events filled in)
+        if (
+            not ctx.at_entry
+            and self.direction == ParamDirection.OUT
+            and isinstance(ctx.return_value, int)
+            and 0 < ctx.return_value < count
+        ):
+            count = ctx.return_value
+
         if count <= 0 or count > 1000:
-            return PointerArg(raw_value)
+            return PointerArg(ctx.raw_value)
 
         # Decode the kevent64 array
-        kevent_list = self._decode_array(process, raw_value, count)
+        kevent_list = self._decode_array(ctx.process, ctx.raw_value, count)
         if kevent_list:
             return StructArrayArg(kevent_list)
 
-        return PointerArg(raw_value)
+        return PointerArg(ctx.raw_value)
 
     def _decode_array(
         self,
@@ -282,7 +324,7 @@ class Kevent64Param(Param):
 
             # Only show fflags if non-zero
             if kev.fflags != 0:
-                entry["fflags"] = decode_kevent_fflags(kev.fflags)
+                entry["fflags"] = decode_kevent_fflags(kev.fflags, kev.filter)
 
             # For OUT direction (eventlist), show data if non-zero
             if self.direction == ParamDirection.OUT and kev.data != 0:
@@ -320,37 +362,29 @@ class PollfdParam(Param):
 
     count_arg_index: int
 
-    def decode(
-        self,
-        tracer: Any,  # noqa: ARG002
-        process: Any,
-        raw_value: int,
-        all_args: list[int],
-        *,
-        at_entry: bool,
-    ) -> SyscallArg | None:
+    def decode(self, ctx: DecodeContext) -> SyscallArg | None:
         """Decode pollfd array parameter."""
         # Decode at entry (for events field)
-        if not at_entry:
+        if not ctx.at_entry:
             return None
 
-        if raw_value == 0:
+        if ctx.raw_value == 0:
             return PointerArg(0)
 
         # Get count from specified argument
-        if self.count_arg_index >= len(all_args):
-            return PointerArg(raw_value)
+        if self.count_arg_index >= len(ctx.all_args):
+            return PointerArg(ctx.raw_value)
 
-        count = all_args[self.count_arg_index]
+        count = ctx.all_args[self.count_arg_index]
         if count <= 0 or count > 1000:
-            return PointerArg(raw_value)
+            return PointerArg(ctx.raw_value)
 
         # Decode the pollfd array
-        pollfd_list = self._decode_array(process, raw_value, count)
+        pollfd_list = self._decode_array(ctx.process, ctx.raw_value, count)
         if pollfd_list:
             return StructArrayArg(pollfd_list)
 
-        return PointerArg(raw_value)
+        return PointerArg(ctx.raw_value)
 
     def _decode_array(
         self,
@@ -468,30 +502,22 @@ class FdSetParam(Param):
     NFDBITS = 32  # bits per int32_t
     ARRAY_SIZE = FD_SETSIZE // NFDBITS  # 32 int32_t values
 
-    def decode(
-        self,
-        tracer: Any,  # noqa: ARG002
-        process: Any,
-        raw_value: int,
-        all_args: list[int],  # noqa: ARG002
-        *,
-        at_entry: bool,
-    ) -> SyscallArg | None:
+    def decode(self, ctx: DecodeContext) -> SyscallArg | None:
         """Decode fd_set bitmap to list of file descriptors."""
         # Only decode at entry (input fd_sets)
-        if not at_entry:
+        if not ctx.at_entry:
             return None
 
-        if raw_value == 0:
+        if ctx.raw_value == 0:
             return PointerArg(0)
 
         # Read the fd_set bitmap (32 * 4 bytes = 128 bytes)
         lldb = load_lldb_module()
         error = lldb.SBError()
-        data = process.ReadMemory(raw_value, self.ARRAY_SIZE * 4, error)
+        data = ctx.process.ReadMemory(ctx.raw_value, self.ARRAY_SIZE * 4, error)
 
         if error.Fail():
-            return PointerArg(raw_value)
+            return PointerArg(ctx.raw_value)
 
         # Parse bitmap to find which fds are set
         fds = []

@@ -6,14 +6,11 @@ import ctypes
 from typing import TYPE_CHECKING, ClassVar
 
 from strace_macos.syscalls.args import PointerArg, StringArg
-from strace_macos.syscalls.definitions import ParamDirection, StructParamBase
+from strace_macos.syscalls.definitions import DecodeContext, ParamDirection, StructParamBase
 from strace_macos.syscalls.symbols.signal import SA_FLAGS, SIGNAL_NUMBERS, SS_FLAGS
 
 if TYPE_CHECKING:
-    import lldb
-
     from strace_macos.syscalls.args import SyscallArg
-    from strace_macos.tracer import Tracer
 
 
 class SigactionStruct(ctypes.Structure):
@@ -181,25 +178,17 @@ class SigsetParam(StructParamBase):
         """Initialize SigsetParam with direction."""
         self.direction = direction
 
-    def decode(
-        self,
-        tracer: Tracer,  # noqa: ARG002
-        process: lldb.SBProcess,
-        raw_value: int,
-        all_args: list[int],  # noqa: ARG002
-        *,
-        at_entry: bool,
-    ) -> SyscallArg | None:
+    def decode(self, ctx: DecodeContext) -> SyscallArg | None:
         """Decode sigset_t* to show signal names."""
 
         # Direction filtering
-        if at_entry and self.direction != ParamDirection.IN:
-            return PointerArg(raw_value)
-        if not at_entry and self.direction != ParamDirection.OUT:
+        if ctx.at_entry and self.direction != ParamDirection.IN:
+            return PointerArg(ctx.raw_value)
+        if not ctx.at_entry and self.direction != ParamDirection.OUT:
             return None
 
         # If NULL pointer
-        if raw_value == 0:
+        if ctx.raw_value == 0:
             return PointerArg(0)
 
         # Read the sigset_t (32-bit value) from memory
@@ -207,9 +196,9 @@ class SigsetParam(StructParamBase):
             import lldb  # noqa: PLC0415
 
             error = lldb.SBError()
-            value = process.ReadUnsignedFromMemory(raw_value, 4, error)
+            value = ctx.process.ReadUnsignedFromMemory(ctx.raw_value, 4, error)
             if error.Fail():
-                return PointerArg(raw_value)
+                return PointerArg(ctx.raw_value)
 
             # Decode the bitmask
             if value == 0:
@@ -225,4 +214,4 @@ class SigsetParam(StructParamBase):
             return StringArg(signals_str)
 
         except (ValueError, TypeError, AttributeError):
-            return PointerArg(raw_value)
+            return PointerArg(ctx.raw_value)

@@ -153,6 +153,75 @@ class TestNetworkSyscalls(unittest.TestCase):
         sth.assert_min_call_count(accept_calls, 1, "accept")
         sth.assert_struct_field(accept_calls[0], 1, "sa_family", "accept")
 
+    def test_sendmsg_recvmsg_formatting_regression(self) -> None:
+        """Regression test for issue #3: sendmsg/recvmsg should use C struct syntax.
+
+        The output should be: msg_iov=[{iov_base="msg", iov_len=3}]
+        """
+        # Test sendmsg
+        sendmsg_calls = sth.filter_syscalls(self.syscalls, "sendmsg")
+        sth.assert_min_call_count(sendmsg_calls, 1, "sendmsg")
+
+        msg_fields = sth.assert_struct_field(sendmsg_calls[0], 1, "msg_iov", "sendmsg")
+        iov = msg_fields["msg_iov"][0]
+
+        # In JSON output, iov_base should be a plain string "msg"
+        assert iov["iov_base"] == "msg", (
+            f"sendmsg iov_base should be 'msg', got {iov['iov_base']!r}"
+        )
+        assert iov["iov_len"] == 3, f"sendmsg iov_len should be 3, got {iov['iov_len']}"
+
+        # Test recvmsg
+        recvmsg_calls = sth.filter_syscalls(self.syscalls, "recvmsg")
+        sth.assert_min_call_count(recvmsg_calls, 1, "recvmsg")
+
+        msg_fields = sth.assert_struct_field(recvmsg_calls[0], 1, "msg_iov", "recvmsg")
+        iov = msg_fields["msg_iov"][0]
+
+        # Verify iov_base is properly decoded as a string
+        assert isinstance(iov["iov_base"], str), (
+            f"recvmsg iov_base should be a string, got {type(iov['iov_base'])}"
+        )
+
+    def test_af_inet_byte_order_regression(self) -> None:
+        """Regression test for issue #4: AF_INET addresses should show 127.0.0.1."""
+        bind_calls = sth.filter_syscalls(self.syscalls, "bind")
+        sth.assert_min_call_count(bind_calls, 1, "bind")
+
+        # Find the AF_INET bind call (there should be at least one)
+        inet_bind = None
+        for call in bind_calls:
+            addr_fields = sth.assert_struct_field(call, 1, "sa_family", "bind")
+            if addr_fields.get("sa_family") == "AF_INET":
+                inet_bind = call
+                break
+
+        assert inet_bind is not None, "Should have at least one AF_INET bind call"
+
+        addr_fields = sth.assert_struct_field(inet_bind, 1, "sin_addr", "bind AF_INET")
+        sin_addr = addr_fields.get("sin_addr", "")
+
+        # Should contain 127.0.0.1
+        assert "127.0.0.1" in sin_addr, f"AF_INET bind should show 127.0.0.1, got {sin_addr}"
+
+    def test_socketpair_shows_fds_regression(self) -> None:
+        """Regression test for issue #18: socketpair should show created FD pair.
+
+        socketpair() should decode the sv[2] output parameter to show the two
+        file descriptors created, formatted as [fd1, fd2].
+        """
+        socketpair_calls = sth.filter_syscalls(self.syscalls, "socketpair")
+        sth.assert_min_call_count(socketpair_calls, 1, "socketpair")
+
+        call = socketpair_calls[0]
+        sv = call["args"][3]
+
+        # Should be a string like "[3, 4]" showing the two FDs
+        assert isinstance(sv, str), f"socketpair sv should be decoded as string, got {type(sv)}"
+        assert sv.startswith("["), f"socketpair sv should start with '[', got: {sv}"
+        assert sv.endswith("]"), f"socketpair sv should end with ']', got: {sv}"
+        assert "," in sv, f"socketpair sv should contain two FDs separated by comma, got: {sv}"
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -8,6 +8,7 @@ from __future__ import annotations
 from strace_macos.syscalls import numbers
 from strace_macos.syscalls.definitions import (
     ConstParam,
+    FileDescriptorParam,
     FlagsParam,
     IntParam,
     PointerParam,
@@ -53,7 +54,7 @@ MEMORY_SYSCALLS: list[SyscallDef] = [
             UnsignedParam(),
             FlagsParam(PROT_FLAGS),
             FlagsParam(MAP_FLAGS),
-            IntParam(),
+            FileDescriptorParam(),
             UnsignedParam(),
         ],
     ),  # 197

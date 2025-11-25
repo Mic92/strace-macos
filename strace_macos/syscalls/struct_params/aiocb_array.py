@@ -11,7 +11,7 @@ from typing import Any
 
 from strace_macos.lldb_loader import load_lldb_module
 from strace_macos.syscalls.args import StructArrayArg, SyscallArg
-from strace_macos.syscalls.definitions import Param, ParamDirection
+from strace_macos.syscalls.definitions import DecodeContext, Param, ParamDirection
 from strace_macos.syscalls.struct_params.aiocb import AiocbStruct
 from strace_macos.syscalls.symbols.ipc import LIO_OPCODES
 
@@ -31,49 +31,37 @@ class AiocbArrayParam(Param):
     count_arg_index: int
     direction: ParamDirection
 
-    def decode(
-        self,
-        tracer: Any,  # noqa: ARG002
-        process: Any,
-        raw_value: int,
-        all_args: list[int],
-        *,
-        at_entry: bool,
-    ) -> SyscallArg | None:
+    def decode(self, ctx: DecodeContext) -> SyscallArg | None:
         """Decode aiocb pointer array to StructArrayArg.
 
         Args:
-            tracer: The Tracer instance (unused)
-            process: The lldb process object for reading memory
-            raw_value: The raw register value (pointer to aiocb* array)
-            all_args: All raw argument values (to get count)
-            at_entry: True if decoding at syscall entry, False at exit
+            ctx: The DecodeContext containing all decode parameters
 
         Returns:
             StructArrayArg with decoded aiocb array or None
         """
         # Direction filtering
-        if at_entry and self.direction != ParamDirection.IN:
+        if ctx.at_entry and self.direction != ParamDirection.IN:
             return None
-        if not at_entry and self.direction != ParamDirection.OUT:
+        if not ctx.at_entry and self.direction != ParamDirection.OUT:
             return None
 
         # Skip NULL pointers
-        if raw_value == 0:
+        if ctx.raw_value == 0:
             return None
 
         # Get count from referenced argument
-        if self.count_arg_index >= len(all_args):
+        if self.count_arg_index >= len(ctx.all_args):
             return None
 
-        count = all_args[self.count_arg_index]
+        count = ctx.all_args[self.count_arg_index]
 
         # Validate count is reasonable
         if count < 0 or count > 64:  # AIO_LISTIO_MAX is 16, but be generous
             return None
 
         # Decode the aiocb pointer array
-        struct_list = self._decode_array(process, raw_value, count)
+        struct_list = self._decode_array(ctx.process, ctx.raw_value, count)
 
         if struct_list:
             return StructArrayArg(struct_list)
