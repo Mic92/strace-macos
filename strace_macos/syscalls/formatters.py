@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, ClassVar
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Union
 
 from strace_macos.syscalls.args import (
     FileDescriptorArg,
@@ -22,6 +22,9 @@ from strace_macos.syscalls.args import (
 
 if TYPE_CHECKING:
     from strace_macos.syscalls.args import SyscallArg
+
+# Type alias for JSON-serializable argument format
+JsonArgType = Union[dict[str, Union[str, int, list[Any]]], list[Any], str, int, None]
 
 
 @dataclass
@@ -45,7 +48,7 @@ class JSONFormatter:
     """Format syscalls as JSON Lines."""
 
     # Type dispatch handlers for JSON formatting (initialized at module load time)
-    _TYPE_HANDLERS: ClassVar[dict[type, Callable[[Any], Any]]] = {
+    _TYPE_HANDLERS: ClassVar[dict[type, Callable[[Any], JsonArgType]]] = {
         SkipArg: lambda _: None,
         StructArg: lambda arg: arg.fields,
         StringArrayArg: lambda arg: arg.strings,
@@ -62,7 +65,7 @@ class JSONFormatter:
     @staticmethod
     def _format_arg_for_json(
         arg: SyscallArg,
-    ) -> dict[str, str | int | list] | list | str | int | None:
+    ) -> JsonArgType:
         """Format a single argument for JSON output.
 
         Args:
@@ -90,7 +93,7 @@ class JSONFormatter:
             JSON string (no trailing newline)
         """
         # Format args: preserve types for JSON, filter out SkipArg
-        formatted_args: list[dict[str, str | int | list] | list | str | int] = []
+        formatted_args: list[dict[str, str | int | list[Any]] | list[Any] | str | int] = []
         for arg in event.args:
             formatted_arg = JSONFormatter._format_arg_for_json(arg)
             if formatted_arg is not None:
