@@ -180,6 +180,31 @@ class BufferArg(SyscallArg):
         return f'"{formatted}"' if formatted else '""'
 
 
+class StringArrayArg(SyscallArg):
+    """String array argument (for argv[], envp[], etc.)."""
+
+    def __init__(self, strings: list[str]) -> None:
+        """Initialize a string array argument.
+
+        Args:
+            strings: List of string values
+        """
+        self.strings = strings
+
+    def __str__(self) -> str:
+        """Return string representation as ["str1", "str2", ...]."""
+        if not self.strings:
+            return "[]"
+
+        # Escape each string
+        escaped_strs = []
+        for s in self.strings:
+            escaped = s.replace("\\", "\\\\").replace('"', '\\"')
+            escaped_strs.append(f'"{escaped}"')
+
+        return "[" + ", ".join(escaped_strs) + "]"
+
+
 class StructArrayArg(SyscallArg):
     """Generic struct array argument (for arrays of structures)."""
 

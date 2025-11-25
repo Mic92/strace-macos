@@ -6,6 +6,7 @@ import contextlib
 import signal
 import sys
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TextIO
 
@@ -34,33 +35,32 @@ if TYPE_CHECKING:
     from strace_macos.syscalls.definitions import Param
 
 
+@dataclass
 class Tracer:
     """System call tracer using LLDB."""
 
-    def __init__(
-        self,
-        output_file: Path | None = None,
-        *,
-        json_output: bool = False,
-        summary_only: bool = False,
-        filter_expr: str | None = None,
-        no_abbrev: bool = False,
-    ) -> None:
-        """Initialize the tracer.
+    # Configuration options
+    output_file: Path | None = None
+    json_output: bool = False
+    summary_only: bool = False
+    filter_expr: str | None = None
+    no_abbrev: bool = False
+    follow_forks: bool = False
 
-        Args:
-            output_file: File to write output to (None for stderr)
-            json_output: Whether to output JSON Lines format
-            summary_only: Whether to only output summary statistics
-            filter_expr: Filter expression (e.g., "trace=open,close")
-            no_abbrev: Disable symbolic decoding (show raw numeric values)
-        """
-        self.output_file = output_file
-        self.json_output = json_output
-        self.summary_only = summary_only
-        self.filter_expr = filter_expr
-        self.no_abbrev = no_abbrev
+    # Runtime state (initialized in __post_init__)
+    lldb: Any = field(init=False)
+    registry: SyscallRegistry = field(init=False)
+    filtered_syscalls: set[str] | None = field(init=False)
+    filter_category: SyscallCategory | None = field(init=False)
+    summary_formatter: SummaryFormatter = field(init=False)
+    output_handle: TextIO | None = field(init=False)
+    formatter: JSONFormatter | TextFormatter | ColorTextFormatter = field(init=False)
+    arch: Architecture = field(init=False)
+    pending_syscalls: dict[tuple[int, int], SyscallEvent] = field(init=False)
+    interrupted: bool = field(init=False)
 
+    def __post_init__(self) -> None:
+        """Initialize runtime state after dataclass field assignment."""
         # Load LLDB
         self.lldb = load_lldb_module()
 
@@ -68,24 +68,18 @@ class Tracer:
         self.registry = SyscallRegistry()
 
         # Parse filter expression
-        self.filtered_syscalls: set[str] | None = None
-        self.filter_category: SyscallCategory | None = None
-        if filter_expr:
-            self._parse_filter(filter_expr)
+        self.filtered_syscalls = None
+        self.filter_category = None
+        if self.filter_expr:
+            self._parse_filter(self.filter_expr)
 
         # Setup formatters
         self.summary_formatter = SummaryFormatter()
-        self.output_handle: TextIO | None = None
-        # Defer creating formatter until we know if output is a TTY
-        self.formatter: JSONFormatter | TextFormatter | ColorTextFormatter
-
-        # Architecture-specific behavior (will be set based on target)
-        # This is always set during spawn() or attach(), so we can assume it's available
-        self.arch: Architecture
+        self.output_handle = None
 
         # Track pending syscalls (entry without exit yet)
         # Key: (thread_id, return_address), Value: SyscallEvent with partial data
-        self.pending_syscalls: dict[tuple[int, int], SyscallEvent] = {}
+        self.pending_syscalls = {}
 
         # Signal handling for graceful shutdown
         self.interrupted = False

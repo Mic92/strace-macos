@@ -185,12 +185,12 @@ Legend:
 ## Process Management Syscalls (75 total)
 
 ### Process Lifecycle
-- [ ] fork (public prototype available)
-- [ ] vfork (public prototype available)
-- [ ] execve (public prototype available)
+- [x] fork (with no-args decoding)
+- [x] vfork (with no-args decoding)
+- [x] execve (with argv/envp array decoding - tested failure case)
 - [ ] __mac_execve (no public prototype - internal only)
-- [ ] posix_spawn (public prototype available)
-- [ ] exit (public prototype available)
+- [x] posix_spawn (with argv/envp array decoding)
+- [ ] exit (requires -f flag to trace in child process)
 - [ ] wait4 (deprecated/complex parameters)
 - [ ] wait4_nocancel (no public prototype - internal only)
 - [ ] waitid (complex parameters)
@@ -570,5 +570,4 @@ Legend:
 ### Priority Test Candidates (Remaining)
 1. **Time/timer** (✓ public prototypes): gettimeofday, settimeofday, getitimer, setitimer, adjtime
 2. **System info** (✓ public prototypes): sysctl, sysctlbyname
-3. **Process lifecycle** (✓ public prototypes, complex): fork, vfork, execve, posix_spawn
-4. **Signal** (✓ public prototypes, blocking): sigsuspend, sigwait
+3. **Signal** (✓ public prototypes, blocking): sigsuspend, sigwait

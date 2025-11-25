@@ -58,6 +58,14 @@ def main(argv: list[str] | None = None) -> int:
         help="Filter expression (e.g., 'trace=open,close' or 'trace=file')",
     )
 
+    # Process tracing options
+    parser.add_argument(
+        "-f",
+        "--follow-forks",
+        action="store_true",
+        help="Trace child processes created by fork/vfork/posix_spawn",
+    )
+
     # Attach or spawn
     parser.add_argument(
         "-p",
@@ -91,6 +99,7 @@ def main(argv: list[str] | None = None) -> int:
             summary_only=args.summary_only,
             filter_expr=args.filter_expr,
             no_abbrev=args.no_abbrev,
+            follow_forks=args.follow_forks,
         )
 
         # Run trace

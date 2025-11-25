@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from strace_macos.syscalls import numbers
 from strace_macos.syscalls.definitions import (
+    ArrayOfStringsParam,
     ConstParam,
     FlagsParam,
     IntParam,
@@ -56,7 +57,7 @@ PROCESS_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_execve,
         "execve",
-        params=[StringParam(), PointerParam(), PointerParam()],
+        params=[StringParam(), ArrayOfStringsParam(), ArrayOfStringsParam()],
     ),  # 59
     SyscallDef(numbers.SYS_vfork, "vfork", params=[]),  # 66
     SyscallDef(
@@ -134,12 +135,12 @@ PROCESS_SYSCALLS: list[SyscallDef] = [
         numbers.SYS_posix_spawn,
         "posix_spawn",
         params=[
-            PointerParam(),
-            StringParam(),
-            PointerParam(),
-            PointerParam(),
-            PointerParam(),
-            PointerParam(),
+            PointerParam(),  # pid_t *pid
+            StringParam(),  # const char *path
+            PointerParam(),  # const posix_spawn_file_actions_t *file_actions
+            PointerParam(),  # const posix_spawnattr_t *attrp
+            ArrayOfStringsParam(),  # char *const argv[]
+            ArrayOfStringsParam(),  # char *const envp[]
         ],
     ),  # 244
     SyscallDef(numbers.SYS_sem_wait, "sem_wait", params=[PointerParam()]),  # 271
