@@ -57,7 +57,7 @@ class JSONFormatter:
     """Format syscalls as JSON Lines."""
 
     @staticmethod
-    def _format_arg_for_json(  # noqa: PLR0911
+    def _format_arg_for_json(  # noqa: C901, PLR0911
         arg: SyscallArg,
     ) -> dict[str, str | int | list] | list | str | int | None:
         """Format a single argument for JSON output.

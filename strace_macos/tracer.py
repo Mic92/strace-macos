@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 class Tracer:
     """System call tracer using LLDB."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         output_file: Path | None = None,
         *,
