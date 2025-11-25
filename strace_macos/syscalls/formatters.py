@@ -36,31 +36,28 @@ class SyscallEvent:
     raw_args: list[int] = field(default_factory=list)
 
 
+def _format_symbolic_or_value(arg: IntArg | FlagsArg) -> str | int:
+    """Format IntArg or FlagsArg: prefer symbolic name if available, else value."""
+    return arg.symbolic if arg.symbolic else arg.value
+
+
 class JSONFormatter:
     """Format syscalls as JSON Lines."""
 
-    # Type dispatch handlers for JSON formatting
-    _TYPE_HANDLERS: ClassVar[dict[type, Callable[[Any], Any]]] = {}
-
-    @classmethod
-    def _register_handlers(cls) -> None:
-        """Register type handlers for JSON formatting."""
-        if cls._TYPE_HANDLERS:
-            return  # Already registered
-
-        cls._TYPE_HANDLERS = {
-            SkipArg: lambda _: None,
-            StructArg: lambda arg: arg.fields,
-            StringArrayArg: lambda arg: arg.strings,
-            StructArrayArg: lambda arg: arg.struct_list,
-            IntPtrArg: lambda arg: [arg.value],
-            FileDescriptorArg: lambda arg: arg.fd,
-            IntArg: lambda arg: arg.symbolic if arg.symbolic else arg.value,
-            FlagsArg: lambda arg: arg.symbolic if arg.symbolic else arg.value,
-            StringArg: lambda arg: arg.value,
-            UnsignedArg: lambda arg: arg.value,
-            PointerArg: lambda arg: f"0x{arg.address:x}",
-        }
+    # Type dispatch handlers for JSON formatting (initialized at module load time)
+    _TYPE_HANDLERS: ClassVar[dict[type, Callable[[Any], Any]]] = {
+        SkipArg: lambda _: None,
+        StructArg: lambda arg: arg.fields,
+        StringArrayArg: lambda arg: arg.strings,
+        StructArrayArg: lambda arg: arg.struct_list,
+        IntPtrArg: lambda arg: [arg.value],
+        FileDescriptorArg: lambda arg: arg.fd,
+        IntArg: _format_symbolic_or_value,
+        FlagsArg: _format_symbolic_or_value,
+        StringArg: lambda arg: arg.value,
+        UnsignedArg: lambda arg: arg.value,
+        PointerArg: lambda arg: f"0x{arg.address:x}",
+    }
 
     @staticmethod
     def _format_arg_for_json(
@@ -74,8 +71,6 @@ class JSONFormatter:
         Returns:
             JSON-serializable representation, or None to skip
         """
-        JSONFormatter._register_handlers()
-
         # Look up handler by exact type
         handler = JSONFormatter._TYPE_HANDLERS.get(type(arg))
         if handler is not None:
