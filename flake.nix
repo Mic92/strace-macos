@@ -40,11 +40,10 @@
               # Copy Python source to libexec
               cp -r strace_macos $out/libexec/strace-macos/
 
-              # Create wrapper that uses system Python
-              makeWrapper /usr/bin/python3 $out/bin/strace \
-                --add-flags "-m" \
-                --add-flags "strace_macos" \
-                --set PYTHONPATH "$out/libexec/strace-macos"
+              # Install wrapper script that uses xcrun to find system Python
+              substitute ${./strace-macos-wrapper.sh} $out/bin/strace \
+                --replace-fail '@PYTHONPATH@' "$out/libexec/strace-macos"
+              chmod +x $out/bin/strace
             '';
 
             meta = {
