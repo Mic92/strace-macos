@@ -35,6 +35,9 @@ if TYPE_CHECKING:
 
     from strace_macos.syscalls.definitions import Param
 
+# Syscalls that create child processes
+FORK_SYSCALLS = {"fork", "vfork", "posix_spawn", "posix_spawnp"}
+
 
 @dataclass
 class Tracer:
@@ -64,6 +67,11 @@ class Tracer:
     # Syscall parameter caches (for cross-parameter context sharing)
     sysctl_mib_cache: dict[int, list[int]] = field(init=False, default_factory=dict)
     sysctlbyname_cache: dict[int, str] = field(init=False, default_factory=dict)
+
+    # Multi-process state for follow_forks
+    child_pids_to_attach: list[int] = field(init=False, default_factory=list)
+    traced_processes: dict[int, Any] = field(init=False, default_factory=dict)
+    debugger: Any = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         """Initialize runtime state after dataclass field assignment."""
@@ -141,6 +149,30 @@ class Tracer:
         # No filter - trace everything
         return True
 
+    def _setup_fork_interpose_env(self, launch_info: lldb.SBLaunchInfo) -> None:
+        """Set up environment variables for fork interposition.
+
+        Args:
+            launch_info: LLDB launch info to configure
+        """
+        import os
+
+        from strace_macos.interpose import get_child_stop_env
+
+        # Get the interpose library environment
+        interpose_env = get_child_stop_env()
+
+        # Build environment with interpose vars added
+        env_list = []
+        for key, value in os.environ.items():
+            env_list.append(f"{key}={value}")
+
+        # Add/override interpose environment variables
+        for key, value in interpose_env.items():
+            env_list.append(f"{key}={value}")
+
+        launch_info.SetEnvironmentEntries(env_list, True)  # noqa: FBT003
+
     def _open_output(self) -> TextIO:
         """Open the output file or return stderr.
 
@@ -211,6 +243,9 @@ class Tracer:
             debugger = self.lldb.SBDebugger.Create()
             debugger.SetAsync(False)  # noqa: FBT003
 
+            # Store debugger for child attachment
+            self.debugger = debugger
+
             # Create target
             target = debugger.CreateTarget(command[0])
             if not target:
@@ -230,6 +265,10 @@ class Tracer:
             # Launch process
             launch_info = self.lldb.SBLaunchInfo(command[1:] if len(command) > 1 else [])
             launch_info.SetWorkingDirectory(str(Path.cwd()))
+
+            # Set up environment for fork interposition if following forks
+            if self.follow_forks:
+                self._setup_fork_interpose_env(launch_info)
 
             error = self.lldb.SBError()
             process = target.Launch(launch_info, error)
@@ -362,6 +401,40 @@ class Tracer:
         for syscall_def in self.registry.get_all_syscalls():
             target.BreakpointCreateByName(syscall_def.name)
 
+    def _attach_to_child(self, child_pid: int) -> lldb.SBProcess | None:
+        """Attach to a child process.
+
+        Args:
+            child_pid: PID of the child process to attach to
+
+        Returns:
+            LLDB process for the child, or None on failure
+        """
+        if not self.debugger:
+            return None
+
+        # Create a new target for the child
+        target = self.debugger.CreateTarget("")
+        if not target:
+            return None
+
+        # Attach to the child
+        error = self.lldb.SBError()
+        child_process = target.AttachToProcessWithID(
+            self.debugger.GetListener(), child_pid, error
+        )
+
+        if not child_process or not child_process.IsValid():
+            return None
+
+        # Set syscall breakpoints on the child
+        self._set_syscall_breakpoints(target)
+
+        # Store the process
+        self.traced_processes[child_pid] = child_process
+
+        return child_process
+
     def _trace_loop(self, process: lldb.SBProcess) -> int:
         """Main tracing loop.
 
@@ -371,32 +444,60 @@ class Tracer:
         Returns:
             Exit code of the process
         """
+        # Track the main process
+        main_pid = process.GetProcessID()
+        self.traced_processes[main_pid] = process
+
         while True:
             # Check if interrupted by signal
             if self.interrupted:
                 return 0
 
-            # Check process state
-            state = process.GetState()
+            # Attach to any queued child processes
+            if self.follow_forks:
+                while self.child_pids_to_attach:
+                    child_pid = self.child_pids_to_attach.pop(0)
+                    child_process = self._attach_to_child(child_pid)
+                    if child_process:
+                        # Continue the child (it's stopped via SIGSTOP from interpose)
+                        child_process.Continue()
 
-            if state == self.lldb.eStateExited:
-                return process.GetExitStatus()  # type: ignore[no-any-return]
-            if state == self.lldb.eStateStopped:
-                # Handle breakpoint
-                self._handle_stop(process)
+            # Check all traced processes
+            all_exited = True
+            main_exit_code = 0
 
-                # Continue execution (unless interrupted)
-                if not self.interrupted:
-                    process.Continue()
-            elif state in (
-                self.lldb.eStateCrashed,
-                self.lldb.eStateDetached,
-                self.lldb.eStateUnloaded,
-            ):
-                return 1
-            else:
-                # Wait for state change
-                time.sleep(0.01)
+            for pid, proc in list(self.traced_processes.items()):
+                state = proc.GetState()
+
+                if state == self.lldb.eStateExited:
+                    if pid == main_pid:
+                        main_exit_code = proc.GetExitStatus()
+                    # Remove exited process
+                    del self.traced_processes[pid]
+                    continue
+
+                all_exited = False
+
+                if state == self.lldb.eStateStopped:
+                    # Handle breakpoint
+                    self._handle_stop(proc)
+
+                    # Continue execution (unless interrupted)
+                    if not self.interrupted:
+                        proc.Continue()
+                elif state in (
+                    self.lldb.eStateCrashed,
+                    self.lldb.eStateDetached,
+                    self.lldb.eStateUnloaded,
+                ):
+                    # Remove failed process
+                    del self.traced_processes[pid]
+
+            if all_exited or not self.traced_processes:
+                return main_exit_code
+
+            # Wait for state change
+            time.sleep(0.01)
 
     def _handle_stop(self, process: lldb.SBProcess) -> None:
         """Handle a process stop (breakpoint hit).
@@ -470,6 +571,12 @@ class Tracer:
             process: LLDB process
             syscall_name: Name of the syscall
         """
+        # Ensure decode context uses the current process (for multi-process)
+        if self.decode_ctx is None:
+            self.decode_ctx = DecodeContext(tracer=self, process=process)
+        else:
+            self.decode_ctx.process = process
+
         # Extract arguments (both decoded and raw values)
         args, raw_args = self._extract_args(frame, syscall_name)
 
@@ -554,6 +661,17 @@ class Tracer:
             syscall_def = self.registry.lookup_by_name(event.syscall_name)
             if syscall_def:
                 self._decode_params_at_exit(event, syscall_def.params)
+
+            # Queue child PID for attachment if following forks
+            if self.follow_forks and event.syscall_name in FORK_SYSCALLS:
+                child_pid = event.return_value
+                # For posix_spawn, the child PID is in the first argument (output param)
+                if event.syscall_name in ("posix_spawn", "posix_spawnp"):
+                    # First arg is pid_t* - already decoded at exit
+                    if event.args and isinstance(event.args[0], int):
+                        child_pid = event.args[0]
+                if child_pid > 0:
+                    self.child_pids_to_attach.append(child_pid)
 
         # Write the complete event
         self._write_event(event)
