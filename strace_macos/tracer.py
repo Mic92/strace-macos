@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import os
 import signal
 import sys
 import time
@@ -230,6 +231,10 @@ class Tracer:
             # Launch process
             launch_info = self.lldb.SBLaunchInfo(command[1:] if len(command) > 1 else [])
             launch_info.SetWorkingDirectory(str(Path.cwd()))
+            launch_info.SetEnvironmentEntries(
+                [f"{k}={v}" for k, v in os.environ.items()], append=True
+            )
+            # TODO: stdout and stderr are being hidden?
 
             error = self.lldb.SBError()
             process = target.Launch(launch_info, error)
