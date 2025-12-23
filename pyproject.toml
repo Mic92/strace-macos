@@ -32,6 +32,9 @@ ignore = [
     "S604",    # shell injection (we control the inputs)
     "PLR2004", # magic values (syscall numbers are naturally magic)
     "T201",    # print statements (used for debugging)
+    "TD002",   # missing author in TODO
+    "TD003",   # missing issue link in TODO
+    "FIX002",  # line contains TODO
 ]
 
 [tool.ruff.lint.pylint]
