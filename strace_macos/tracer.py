@@ -234,7 +234,20 @@ class Tracer:
             launch_info.SetEnvironmentEntries(
                 [f"{k}={v}" for k, v in os.environ.items()], append=True
             )
-            # TODO: stdout and stderr are being hidden?
+            # Redirect stdout/stderr to parent process's stdout/stderr so traced
+            # process output is visible (LLDB defaults to a pseudo-terminal)
+            launch_info.AddOpenFileAction(
+                1,
+                "/dev/stdout",
+                False,  # noqa: FBT003 - LLDB API (read)
+                True,  # noqa: FBT003 - LLDB API (write)
+            )  # stdout
+            launch_info.AddOpenFileAction(
+                2,
+                "/dev/stderr",
+                False,  # noqa: FBT003 - LLDB API (read)
+                True,  # noqa: FBT003 - LLDB API (write)
+            )  # stderr
 
             error = self.lldb.SBError()
             process = target.Launch(launch_info, error)

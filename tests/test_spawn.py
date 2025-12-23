@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
+
 from strace_macos.__main__ import main
 from tests.base import StraceTestCase
 from tests.fixtures import helpers
@@ -100,6 +102,46 @@ class TestSpawn(StraceTestCase):
         # Should still capture syscalls even though command failed
         syscalls = helpers.json_lines(output_file)
         assert len(syscalls) > 0, "Should capture syscalls even on failure"
+
+    def test_spawn_stdout_stderr_visible(self) -> None:
+        """Test that traced process stdout/stderr is visible in output.
+
+        Regression test for GitHub issue #48: LLDB was redirecting stdout/stderr
+        to a pseudo-terminal, making traced process output invisible.
+        """
+        trace_output = self.temp_dir / "trace.jsonl"
+
+        # Run strace in a subprocess so we can capture combined stdout/stderr
+        result = subprocess.run(
+            [
+                "/usr/bin/python3",
+                "-m",
+                "strace_macos",
+                "--json",
+                "-o",
+                str(trace_output),
+                str(self.test_executable),
+                "--stdio-test",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=self.project_root,
+            env=self.get_test_env(),
+            check=False,
+        )
+
+        combined_output = result.stdout + result.stderr
+
+        # Verify both stdout and stderr markers appear in the output
+        assert "STDOUT_MARKER_12345" in combined_output, (
+            f"Traced process stdout should be visible. Got: {combined_output[:500]}"
+        )
+        assert "STDERR_MARKER_67890" in combined_output, (
+            f"Traced process stderr should be visible. Got: {combined_output[:500]}"
+        )
+
+        # Verify the trace completed successfully
+        assert result.returncode == 0, f"strace should exit with code 0, got {result.returncode}"
 
 
 if __name__ == "__main__":

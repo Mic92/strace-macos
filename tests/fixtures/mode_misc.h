@@ -45,6 +45,17 @@ int mode_fail(int argc, char *argv[]) {
   return 1;
 }
 
+int mode_stdio_test(int argc, char *argv[]) {
+  (void)argc;
+  (void)argv;
+  /* Write unique markers to both stdout and stderr */
+  fprintf(stdout, "STDOUT_MARKER_12345\n");
+  fflush(stdout);
+  fprintf(stderr, "STDERR_MARKER_67890\n");
+  fflush(stderr);
+  return 0;
+}
+
 int mode_default(int argc, char *argv[]) {
   /* Print all arguments */
   for (int i = 0; i < argc; i++) {
