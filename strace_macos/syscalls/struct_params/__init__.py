@@ -14,8 +14,6 @@ from strace_macos.syscalls.struct_params.event_structs import (
     Kevent64Param,
     KeventParam,
     PollfdParam,
-    TimespecParam,
-    TimevalParam,
 )
 from strace_macos.syscalls.struct_params.fssearchblock import FssearchblockParam
 from strace_macos.syscalls.struct_params.int_ptr import FdPairParam, IntArrayParam, IntPtrParam
@@ -37,6 +35,11 @@ from strace_macos.syscalls.struct_params.sockaddr import SockaddrParam
 from strace_macos.syscalls.struct_params.stat import StatParam
 from strace_macos.syscalls.struct_params.statfs import StatfsParam
 from strace_macos.syscalls.struct_params.termios import TermiosParam
+from strace_macos.syscalls.struct_params.time_structs import (
+    TimespecParam,
+    TimevalParam,
+    TimezoneParam,
+)
 from strace_macos.syscalls.struct_params.winsize import WinsizeParam
 
 __all__ = [
@@ -67,5 +70,6 @@ __all__ = [
     "TermiosParam",
     "TimespecParam",
     "TimevalParam",
+    "TimezoneParam",
     "WinsizeParam",
 ]

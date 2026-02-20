@@ -436,60 +436,6 @@ class PollfdParam(Param):
         return "|".join(flags) if flags else f"0x{value:x}"
 
 
-class TimespecStruct(ctypes.Structure):
-    """ctypes definition for struct timespec.
-
-    struct timespec {
-        time_t  tv_sec;   // seconds
-        long    tv_nsec;  // nanoseconds
-    };
-    """
-
-    _fields_: ClassVar[list[tuple[str, type]]] = [
-        ("tv_sec", ctypes.c_int64),  # time_t
-        ("tv_nsec", ctypes.c_long),  # long
-    ]
-
-
-class TimespecParam(StructParamBase):
-    """Parameter decoder for struct timespec."""
-
-    struct_type = TimespecStruct
-    excluded_fields: ClassVar[set[str]] = set()
-    field_formatters: ClassVar[dict[str, str]] = {}
-
-    def __init__(self) -> None:
-        """Initialize TimespecParam."""
-        self.direction = ParamDirection.IN
-
-
-class TimevalStruct(ctypes.Structure):
-    """ctypes definition for struct timeval.
-
-    struct timeval {
-        time_t       tv_sec;   // seconds
-        suseconds_t  tv_usec;  // microseconds
-    };
-    """
-
-    _fields_: ClassVar[list[tuple[str, type]]] = [
-        ("tv_sec", ctypes.c_int64),  # time_t
-        ("tv_usec", ctypes.c_int32),  # suseconds_t (int32 on macOS)
-    ]
-
-
-class TimevalParam(StructParamBase):
-    """Parameter decoder for struct timeval."""
-
-    struct_type = TimevalStruct
-    excluded_fields: ClassVar[set[str]] = set()
-    field_formatters: ClassVar[dict[str, str]] = {}
-
-    def __init__(self) -> None:
-        """Initialize TimevalParam."""
-        self.direction = ParamDirection.IN
-
-
 @dataclass
 class FdSetParam(Param):
     """Parameter decoder for fd_set (file descriptor set).
@@ -547,6 +493,4 @@ __all__ = [
     "Kevent64Param",
     "KeventParam",
     "PollfdParam",
-    "TimespecParam",
-    "TimevalParam",
 ]

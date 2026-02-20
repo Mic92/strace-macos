@@ -9,9 +9,14 @@ from strace_macos.syscalls import numbers
 from strace_macos.syscalls.definitions import (
     ConstParam,
     IntParam,
+    ParamDirection,
     PointerParam,
     StringParam,
     SyscallDef,
+)
+from strace_macos.syscalls.struct_params import (
+    TimespecParam,
+    TimezoneParam,
 )
 from strace_macos.syscalls.symbols.time import ITIMER_CONSTANTS
 
@@ -37,12 +42,18 @@ TIME_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_gettimeofday,
         "gettimeofday",
-        params=[PointerParam(), PointerParam()],
+        params=[
+            TimespecParam(direction=ParamDirection.OUT),
+            TimezoneParam(direction=ParamDirection.OUT),
+        ],
     ),  # 116
     SyscallDef(
         numbers.SYS_settimeofday,
         "settimeofday",
-        params=[PointerParam(), PointerParam()],
+        params=[
+            TimespecParam(direction=ParamDirection.IN),
+            TimezoneParam(direction=ParamDirection.IN),
+        ],
     ),  # 122
     SyscallDef(
         numbers.SYS_utimes,

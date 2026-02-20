@@ -31,6 +31,7 @@ int mode_signal(int argc, char *argv[]);
 int mode_kqueue_select(int argc, char *argv[]);
 int mode_fork_exec(int argc, char *argv[]);
 int mode_sysinfo(int argc, char *argv[]);
+int mode_time(int argc, char *argv[]);
 int mode_long_running(int argc, char *argv[]);
 int mode_fail(int argc, char *argv[]);
 int mode_default(int argc, char *argv[]);
@@ -66,6 +67,8 @@ static const test_mode_t modes[] = {
      "Fork/exec ops (fork/vfork/execve/posix_spawn)"},
     {"--sysinfo", mode_sysinfo,
      "System info ops (sysctl/sysctlbyname/getdtablesize/gethostuuid/getentropy)"},
+    {"--time", mode_time,
+        "Time ops (setitimer/getitimer/gettimeofday/settimeofday/utimes/futimes/adjtime)"},
     {"--long-running", mode_long_running,
      "Long-running process for attach testing"},
     {"--fail", mode_fail, "Exit with non-zero status"},
