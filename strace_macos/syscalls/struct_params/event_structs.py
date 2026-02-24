@@ -12,7 +12,6 @@ from strace_macos.syscalls.definitions import (
     DecodeContext,
     Param,
     ParamDirection,
-    StructParamBase,
     SyscallArg,
 )
 from strace_macos.syscalls.symbols.ipc import POLL_EVENTS
