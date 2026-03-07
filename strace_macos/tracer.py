@@ -546,8 +546,19 @@ class Tracer:
                     signed_ret, event.raw_args, no_abbrev=self.no_abbrev
                 )
             elif not self.no_abbrev and signed_ret < 0:
-                # Apply errno decoding if enabled and return is an error
-                event.return_value = decode_errno(signed_ret)
+                # On macOS, syscalls return -1 on error
+                # Try to read errno from TLS
+                if signed_ret == -1:
+                    errno_value = self._read_errno(frame)
+                    if errno_value is not None:
+                        # Decode as -errno for the decoder
+                        event.return_value = decode_errno(-errno_value)
+                    else:
+                        # Fallback if _read_errno can't get it from TLS
+                        event.return_value = "?"
+                else:
+                    # Apply errno decoding if enabled and return is an error
+                    event.return_value = decode_errno(signed_ret)
             else:
                 event.return_value = signed_ret
         else:
@@ -562,6 +573,58 @@ class Tracer:
 
         # Write the complete event
         self._write_event(event)
+
+    def _read_errno(self, frame: lldb.SBFrame) -> int | None:
+        """Read errno value from thread-local storage via __error().
+
+        On macOS, errno is stored in thread-local storage. The __error() function
+        returns a pointer to the current thread's errno variable.
+
+        Args:
+            frame: LLDB stack frame at syscall return
+
+        Returns:
+            errno value, or None if reading failed
+        """
+        try:
+            # Create expression options
+            options = self.lldb.SBExpressionOptions()
+
+            options.SetTrapExceptions(False)  # noqa: FBT003
+            options.SetUnwindOnError(False)  # noqa: FBT003
+            options.SetIgnoreBreakpoints(True)  # noqa: FBT003
+            options.SetTimeoutInMicroSeconds(100000)  # 100ms timeout
+
+            # Try multiple ways to read errno
+            # First try the errno macro directly (most reliable)
+            errno_expr = frame.EvaluateExpression("errno", options)
+
+            # If that fails, try __error()
+            if not errno_expr.IsValid() or errno_expr.GetError().Fail():
+                errno_expr = frame.EvaluateExpression("*__error()", options)
+
+            # Check if evaluation succeeded
+            if not errno_expr.IsValid():
+                return None
+
+            error = errno_expr.GetError()
+            if error.Fail():
+                return None
+
+            # Get the errno value
+            errno_value = errno_expr.GetValueAsUnsigned()
+
+            # Sanity check: errno should be in valid range (1-107 on macOS)
+            #
+            # Ref: https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/errno.h#L270
+            if errno_value > 0 and errno_value <= 107:
+                return int(errno_value)
+
+            return None  # noqa: TRY300
+
+        except Exception:  # noqa: BLE001
+            # If anything goes wrong, fail gracefully
+            return None
 
     def _extract_args(
         self, frame: lldb.SBFrame, syscall_name: str

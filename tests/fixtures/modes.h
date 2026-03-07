@@ -33,6 +33,7 @@ int mode_fork_exec(int argc, char *argv[]);
 int mode_sysinfo(int argc, char *argv[]);
 int mode_long_running(int argc, char *argv[]);
 int mode_fail(int argc, char *argv[]);
+int mode_errno_test(int argc, char *argv[]);
 int mode_default(int argc, char *argv[]);
 
 /* Global mode registry */
@@ -69,6 +70,8 @@ static const test_mode_t modes[] = {
     {"--long-running", mode_long_running,
      "Long-running process for attach testing"},
     {"--fail", mode_fail, "Exit with non-zero status"},
+    {"--errno-test", mode_errno_test,
+     "Test errno return values (generates syscall failures)"},
     {NULL, mode_default, "Default mode: print args"},
 };
 

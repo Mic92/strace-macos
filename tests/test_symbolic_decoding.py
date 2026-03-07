@@ -190,6 +190,107 @@ class TestSymbolicDecoding(StraceTestCase):
             f"stat syscalls should include decoded st_mode. Found: {stat_calls}"
         )
 
+    def test_errno_return_value_formatting(self) -> None:
+        """Test that error returns show errno from TLS.
+
+        On macOS (BSD-style), syscalls return -1 on error and set errno in TLS.
+        The tracer should read errno and show the actual error (e.g., ENOENT, EBADF).
+        """
+        output_file = self.temp_dir / "trace.txt"
+
+        # Trace test executable with errno test mode
+        exit_code = main(
+            [
+                "-o",
+                str(output_file),
+                str(self.test_executable),
+                "--errno-test",
+            ]
+        )
+
+        assert exit_code == 0, "strace should exit with code 0"
+        content = output_file.read_text()
+
+        # Find syscalls that should have failed (return -1)
+        # Look for open, read, write, stat, access calls
+        failed_syscalls = [line for line in content.split("\n") if " = -1" in line]
+
+        assert len(failed_syscalls) > 0, f"Should find failed syscalls in output:\n{content}"
+
+        # With errno reading enabled by default, should see actual errno names
+        found_errno_decoding = False
+        errno_names = ["ENOENT", "EBADF", "EINVAL"]
+
+        for line in failed_syscalls:
+            for errno_name in errno_names:
+                if errno_name in line:
+                    found_errno_decoding = True
+                    break
+
+        assert found_errno_decoding, (
+            f"Should find errno names (ENOENT, EBADF, etc.) in failed syscalls. "
+            f"Failed syscalls: {failed_syscalls}"
+        )
+
+    def test_errno_return_value_formatting_json(self) -> None:
+        """Test that error returns show errno in JSON output."""
+        output_file = self.temp_dir / "trace.jsonl"
+
+        # Trace test executable with errno test mode and JSON output
+        exit_code = main(
+            [
+                "--json",
+                "-o",
+                str(output_file),
+                str(self.test_executable),
+                "--errno-test",
+            ]
+        )
+
+        assert exit_code == 0, "strace should exit with code 0"
+        syscalls = helpers.json_lines(output_file)
+        assert len(syscalls) > 0, "Should capture syscalls"
+
+        # Find syscalls that failed (return starts with -1)
+        failed_syscalls = [
+            sc
+            for sc in syscalls
+            if isinstance(sc.get("return"), str) and sc.get("return", "").startswith("-1")
+        ]
+
+        # Debug: print all return values for open/read/write/stat/access
+        debug_syscalls = [
+            (sc.get("syscall"), sc.get("return"))
+            for sc in syscalls
+            if sc.get("syscall") in ("open", "read", "write", "stat", "access")
+        ]
+
+        assert len(failed_syscalls) > 0, (
+            f"Should find failed syscalls in JSON output. "
+            f"Debug syscalls with returns: {debug_syscalls}"
+        )
+
+        # Verify that failed syscalls show errno
+        # and that errno is decoded from TLS
+        found_errno_decoding = False
+        errno_names = ["ENOENT", "EBADF", "EINVAL"]
+
+        for sc in failed_syscalls:
+            return_val = sc.get("return")
+            if not return_val:
+                continue
+
+            # Check for actual errno names
+            for errno_name in errno_names:
+                if errno_name in return_val:
+                    found_errno_decoding = True
+                    break
+
+        assert found_errno_decoding, (
+            f"Should find errno names (ENOENT, EBADF, etc.) in JSON return values. "
+            f"Failed syscalls: {[(sc.get('syscall'), sc.get('return')) for sc in failed_syscalls]}"
+        )
+
 
 if __name__ == "__main__":
     import unittest

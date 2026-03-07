@@ -17,6 +17,7 @@
 #include "mode_process_advanced.h"
 #include "mode_signal.h"
 #include "mode_sysinfo.h"
+#include "mode_errno_test.h"
 #include "modes.h"
 #include <string.h>
 
