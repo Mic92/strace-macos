@@ -432,17 +432,32 @@ class StructParamBase(Param):
     # Subclasses must set this in __init__
     direction: ParamDirection
 
+    def should_decode(self, ctx: DecodeContext): # FIXME: return type annotation
+        """Should we run decoding right now? 
+        That is, check param direction, and determine if the data to decode is
+        there now.
+
+        Returns:
+            If not, returns False and the appropriate return value for the caller.
+            If yes, returns True (and None)
+        """
+        if ctx.at_entry and self.direction != ParamDirection.IN:
+            return False, PointerArg(ctx.raw_value)  # Return as pointer for now
+        if not ctx.at_entry and self.direction != ParamDirection.OUT:
+            return False, None  # Already decoded at entry
+        return True, None
+
     def decode(self, ctx: DecodeContext) -> SyscallArg | None:
         """Decode struct pointer to StructArg.
 
         This handles direction filtering and delegates to decode_struct()
         for the actual struct decoding logic.
         """
+
         # Direction filtering: only decode at appropriate time
-        if ctx.at_entry and self.direction != ParamDirection.IN:
-            return PointerArg(ctx.raw_value)  # Return as pointer for now
-        if not ctx.at_entry and self.direction != ParamDirection.OUT:
-            return None  # Already decoded at entry
+        sd, ret = self.should_decode(ctx)
+        if not sd:
+            return ret
 
         # Skip NULL pointers
         if ctx.raw_value == 0:

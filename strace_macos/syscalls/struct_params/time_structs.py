@@ -8,10 +8,15 @@ from typing import ClassVar
 from dataclasses import dataclass
 
 from strace_macos.syscalls.definitions import (
+    PointerArg,
     Param,
     ParamDirection,
     StructParamBase,
 )
+
+
+from strace_macos.syscalls.args import StructArrayArg
+from strace_macos.syscalls.struct_params.decode_array import decode_array
 
 
 class TimespecStruct(ctypes.Structure):
@@ -67,6 +72,7 @@ class TimevalParam(StructParamBase):
         """Initialize TimevalParam."""
         self.direction = direction
 
+
 class TimezoneStruct(ctypes.Structure):
     """
     struct timezone {
@@ -92,23 +98,30 @@ class TimezoneParam(StructParamBase):
         """Initialize TimezoneParam."""
         self.direction = direction
 
+
 @dataclass
-class TimevalArrayParam(Param):
-    """Parameter decoder for struct timeval array, used in utimes() / futimes() .
-    """
+class TimevalArray2Param(Param):
+    """Parameter decoder for struct timeval[2], used in utimes() / futimes()."""
+
+    def __init__(self, direction: ParamDirection) -> None:
+        """Initialize TimevalArray2Param."""
+        self.direction = direction
 
     def decode(self, ctx: DecodeContext) -> SyscallArg | None:
-        if not ctx.at_entry:
-            return None
-
         if ctx.raw_value == 0:
             return PointerArg(0)
 
-        timeval_list = decode_array.decode_array(ctx.process, ctx.raw_value, 2)
+        timeval_list = decode_array(
+            ctx,
+            address=ctx.raw_value,
+            count=2,
+            param=TimevalParam(self.direction)
+        )
+
         if timeval_list:
             return StructArrayArg(timeval_list)
 
         return PointerArg(ctx.raw_value)
 
 
-__all__ = ["TimespecParam", "TimevalParam", "TimezoneParam"]
+__all__ = ["TimespecParam", "TimevalParam", "TimezoneParam", "TimevalArray2Param"]

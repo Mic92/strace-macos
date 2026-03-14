@@ -39,6 +39,7 @@ from strace_macos.syscalls.struct_params.time_structs import (
     TimespecParam,
     TimevalParam,
     TimezoneParam,
+    TimevalArray2Param,
 )
 from strace_macos.syscalls.struct_params.winsize import WinsizeParam
 
@@ -71,5 +72,6 @@ __all__ = [
     "TimespecParam",
     "TimevalParam",
     "TimezoneParam",
+    "TimevalArray2Param",
     "WinsizeParam",
 ]

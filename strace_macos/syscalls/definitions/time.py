@@ -19,6 +19,7 @@ from strace_macos.syscalls.struct_params import (
     TimespecParam,
     TimevalParam,
     TimezoneParam,
+    TimevalArray2Param,
 )
 from strace_macos.syscalls.symbols.time import ITIMER_CONSTANTS
 
@@ -60,12 +61,12 @@ TIME_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_utimes,
         "utimes",
-        params=[StringParam(), PointerParam()],
+        params=[StringParam(), TimevalArray2Param(direction=ParamDirection.IN)],
     ),  # 138
     SyscallDef(
         numbers.SYS_futimes,
         "futimes",
-        params=[FileDescriptorParam(), PointerParam()],
+        params=[FileDescriptorParam(), TimevalArray2Param(direction=ParamDirection.IN)],
     ),  # 139
     SyscallDef(
         numbers.SYS_adjtime,
