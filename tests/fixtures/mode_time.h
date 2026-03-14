@@ -45,6 +45,7 @@ int mode_time(int argc, char *argv[]) {
       int fd = open(tempfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
       if (fd < 0) {
           fprintf(stderr, "couldn't create tempfile for time tests\n");
+          return -1;
       }
 
       struct timeval tv[2] = {{999, 888}, {777, 666}};
@@ -60,14 +61,28 @@ int mode_time(int argc, char *argv[]) {
 
   unlink(tempfile);
 
-  /* === adjtime === */
+  /* === adjtime() === */
   {
       struct timeval delta = {1, 2};
       struct timeval olddelta = {0, 0};
       adjtime(&delta, &olddelta);
   }
   
+  /* === getitimer() === */
+  {
+      struct itimerval itv;
+      getitimer(ITIMER_VIRTUAL, &itv);
+  }
+
+  /* === setitimer() === */
+  {
+      struct itimerval value = {{1,2}, {0,0}};
+      struct itimerval ovalue;
+      setitimer(ITIMER_VIRTUAL, &value, &ovalue);
+  }
+
   return 0;
 }
 
 #endif /* MODE_TIME_H */
+
