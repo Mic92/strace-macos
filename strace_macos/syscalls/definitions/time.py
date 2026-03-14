@@ -8,10 +8,19 @@ from __future__ import annotations
 from strace_macos.syscalls import numbers
 from strace_macos.syscalls.definitions import (
     ConstParam,
+    FileDescriptorParam,
     IntParam,
+    ParamDirection,
     PointerParam,
     StringParam,
     SyscallDef,
+)
+from strace_macos.syscalls.struct_params import (
+    ITimerValParam,
+    TimespecParam,
+    TimevalParam,
+    TimezoneParam,
+    TimevalArray2Param,
 )
 from strace_macos.syscalls.symbols.time import ITIMER_CONSTANTS
 
@@ -22,8 +31,8 @@ TIME_SYSCALLS: list[SyscallDef] = [
         "setitimer",
         params=[
             ConstParam(ITIMER_CONSTANTS),
-            PointerParam(),
-            PointerParam(),
+            ITimerValParam(direction=ParamDirection.IN),
+            ITimerValParam(direction=ParamDirection.OUT),
         ],
     ),  # 83
     SyscallDef(
@@ -31,32 +40,41 @@ TIME_SYSCALLS: list[SyscallDef] = [
         "getitimer",
         params=[
             ConstParam(ITIMER_CONSTANTS),
-            PointerParam(),
+            ITimerValParam(direction=ParamDirection.OUT),
         ],
     ),  # 86
     SyscallDef(
         numbers.SYS_gettimeofday,
         "gettimeofday",
-        params=[PointerParam(), PointerParam()],
+        params=[
+            TimespecParam(direction=ParamDirection.OUT),
+            TimezoneParam(direction=ParamDirection.OUT),
+        ],
     ),  # 116
     SyscallDef(
         numbers.SYS_settimeofday,
         "settimeofday",
-        params=[PointerParam(), PointerParam()],
+        params=[
+            TimespecParam(direction=ParamDirection.IN),
+            TimezoneParam(direction=ParamDirection.IN),
+        ],
     ),  # 122
     SyscallDef(
         numbers.SYS_utimes,
         "utimes",
-        params=[StringParam(), PointerParam()],
+        params=[StringParam(), TimevalArray2Param(direction=ParamDirection.IN)],
     ),  # 138
     SyscallDef(
         numbers.SYS_futimes,
         "futimes",
-        params=[IntParam(), PointerParam()],
+        params=[FileDescriptorParam(), TimevalArray2Param(direction=ParamDirection.IN)],
     ),  # 139
     SyscallDef(
         numbers.SYS_adjtime,
         "adjtime",
-        params=[PointerParam(), PointerParam()],
+        params=[
+            TimevalParam(direction=ParamDirection.IN),
+            TimevalParam(direction=ParamDirection.OUT),
+        ]
     ),  # 140
 ]

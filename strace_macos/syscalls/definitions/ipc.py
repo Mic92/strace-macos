@@ -51,7 +51,7 @@ IPC_SYSCALLS: list[SyscallDef] = [
             FdSetParam(),  # readfds
             FdSetParam(),  # writefds
             FdSetParam(),  # exceptfds
-            TimevalParam(),  # timeout
+            TimevalParam(direction = ParamDirection.IN),  # timeout
         ],
     ),  # 93
     SyscallDef(
@@ -71,7 +71,7 @@ IPC_SYSCALLS: list[SyscallDef] = [
             FdSetParam(),  # readfds
             FdSetParam(),  # writefds
             FdSetParam(),  # exceptfds
-            TimespecParam(),  # timeout
+            TimespecParam(direction=ParamDirection.IN),  # timeout
             PointerParam(),  # sigmask - TODO: decode sigset_t
         ],
     ),  # 312
@@ -237,7 +237,7 @@ IPC_SYSCALLS: list[SyscallDef] = [
             IntParam(),  # nchanges
             KeventParam(count_arg_index=4, direction=ParamDirection.OUT),  # eventlist
             IntParam(),  # nevents
-            TimespecParam(),  # timeout
+            TimespecParam(direction=ParamDirection.IN),  # timeout
         ],
     ),  # 363
     SyscallDef(
@@ -250,7 +250,7 @@ IPC_SYSCALLS: list[SyscallDef] = [
             Kevent64Param(count_arg_index=4, direction=ParamDirection.OUT),  # eventlist
             IntParam(),  # nevents
             UnsignedParam(),  # flags
-            TimespecParam(),  # timeout
+            TimespecParam(direction=ParamDirection.IN),  # timeout
         ],
     ),  # 369
     SyscallDef(
