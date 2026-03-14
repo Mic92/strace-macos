@@ -18,6 +18,32 @@ from strace_macos.syscalls.definitions import (
 from strace_macos.syscalls.args import StructArrayArg
 from strace_macos.syscalls.struct_params.decode_array import decode_array
 
+class ITimerValStruct(ctypes.Structure):
+    """ctypes definition for struct itimerval.
+
+    struct itimerval {
+        struct  timeval it_interval;    /* timer interval */
+        struct  timeval it_value;       /* current value */
+    };
+    """
+
+    _fields_: ClassVar[list[tuple[str, type]]] = [
+        ("tv_sec", ctypes.c_int64),  # time_t
+        ("tv_usec", ctypes.c_int32),  # suseconds_t (int32 on macOS)
+    ]
+
+
+class ITimerValParam(StructParamBase):
+    """Parameter decoder for struct itimerval."""
+
+    struct_type = ITimerValStruct
+    excluded_fields: ClassVar[set[str]] = set()
+    field_formatters: ClassVar[dict[str, str]] = {}
+
+    def __init__(self, direction: ParamDirection) -> None:
+        """Initialize ITimervalParam."""
+        self.direction = direction
+
 
 class TimespecStruct(ctypes.Structure):
     """ctypes definition for struct timespec.
@@ -129,4 +155,4 @@ class TimevalArray2Param(Param):
         return PointerArg(ctx.raw_value)
 
 
-__all__ = ["TimespecParam", "TimevalParam", "TimezoneParam", "TimevalArray2Param"]
+__all__ = ["ITimerValParam", "TimespecParam", "TimevalParam", "TimezoneParam", "TimevalArray2Param"]

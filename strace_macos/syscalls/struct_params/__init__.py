@@ -36,6 +36,7 @@ from strace_macos.syscalls.struct_params.stat import StatParam
 from strace_macos.syscalls.struct_params.statfs import StatfsParam
 from strace_macos.syscalls.struct_params.termios import TermiosParam
 from strace_macos.syscalls.struct_params.time_structs import (
+    ITimerValParam,
     TimespecParam,
     TimevalParam,
     TimezoneParam,
@@ -52,6 +53,7 @@ __all__ = [
     "FssearchblockParam",
     "IntArrayParam",
     "IntPtrParam",
+    "ITimerValParam",
     "IovecParam",
     "Kevent64Param",
     "KeventParam",

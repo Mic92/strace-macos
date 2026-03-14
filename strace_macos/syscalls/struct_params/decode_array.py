@@ -15,16 +15,6 @@ def _generic_decode(ctx, param, data):
         return StructArg(decoded_fields)
     return None
 
-#def _generic_decode(ctx, struct):
-#    out = dict()
-#    for field in struct._fields_:
-#        field_name = field[0]
-#        field_value = getattr(struct, field[0])
-#        out[field_name] = field_value
-#
-#    # FIXME: what to do here if no fields?
-#    return out
-
 def decode_array(
     ctx: DecodeContext,
     address: int,

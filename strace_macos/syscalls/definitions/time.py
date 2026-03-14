@@ -16,6 +16,7 @@ from strace_macos.syscalls.definitions import (
     SyscallDef,
 )
 from strace_macos.syscalls.struct_params import (
+    ITimerValParam,
     TimespecParam,
     TimevalParam,
     TimezoneParam,
@@ -30,8 +31,8 @@ TIME_SYSCALLS: list[SyscallDef] = [
         "setitimer",
         params=[
             ConstParam(ITIMER_CONSTANTS),
-            PointerParam(),
-            PointerParam(),
+            ITimerValParam(direction=ParamDirection.IN),
+            ITimerValParam(direction=ParamDirection.OUT),
         ],
     ),  # 83
     SyscallDef(
@@ -39,7 +40,7 @@ TIME_SYSCALLS: list[SyscallDef] = [
         "getitimer",
         params=[
             ConstParam(ITIMER_CONSTANTS),
-            PointerParam(),
+            ITimerValParam(direction=ParamDirection.OUT),
         ],
     ),  # 86
     SyscallDef(
