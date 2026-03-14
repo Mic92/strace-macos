@@ -27,6 +27,13 @@ int mode_time(int argc, char *argv[]) {
       settimeofday(&tv, &tz);
   }
 
+  /* === utimes() === */
+  {
+      struct timeval tv[2];
+      utimes("somefile", tv);
+  }
+
+  printf("DPNE\n");
   return 0;
 }
 

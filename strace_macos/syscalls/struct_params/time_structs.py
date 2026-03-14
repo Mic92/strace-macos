@@ -5,7 +5,10 @@ from __future__ import annotations
 import ctypes
 from typing import ClassVar
 
+from dataclasses import dataclass
+
 from strace_macos.syscalls.definitions import (
+    Param,
     ParamDirection,
     StructParamBase,
 )
@@ -60,10 +63,9 @@ class TimevalParam(StructParamBase):
     excluded_fields: ClassVar[set[str]] = set()
     field_formatters: ClassVar[dict[str, str]] = {}
 
-    def __init__(self) -> None:
+    def __init__(self, direction: ParamDirection) -> None:
         """Initialize TimevalParam."""
-        self.direction = ParamDirection.IN
-
+        self.direction = direction
 
 class TimezoneStruct(ctypes.Structure):
     """
@@ -89,6 +91,24 @@ class TimezoneParam(StructParamBase):
     def __init__(self, direction: ParamDirection) -> None:
         """Initialize TimezoneParam."""
         self.direction = direction
+
+@dataclass
+class TimevalArrayParam(Param):
+    """Parameter decoder for struct timeval array, used in utimes() / futimes() .
+    """
+
+    def decode(self, ctx: DecodeContext) -> SyscallArg | None:
+        if not ctx.at_entry:
+            return None
+
+        if ctx.raw_value == 0:
+            return PointerArg(0)
+
+        timeval_list = decode_array.decode_array(ctx.process, ctx.raw_value, 2)
+        if timeval_list:
+            return StructArrayArg(timeval_list)
+
+        return PointerArg(ctx.raw_value)
 
 
 __all__ = ["TimespecParam", "TimevalParam", "TimezoneParam"]

@@ -8,6 +8,7 @@ from __future__ import annotations
 from strace_macos.syscalls import numbers
 from strace_macos.syscalls.definitions import (
     ConstParam,
+    FileDescriptorParam,
     IntParam,
     ParamDirection,
     PointerParam,
@@ -16,6 +17,7 @@ from strace_macos.syscalls.definitions import (
 )
 from strace_macos.syscalls.struct_params import (
     TimespecParam,
+    TimevalParam,
     TimezoneParam,
 )
 from strace_macos.syscalls.symbols.time import ITIMER_CONSTANTS
@@ -63,11 +65,14 @@ TIME_SYSCALLS: list[SyscallDef] = [
     SyscallDef(
         numbers.SYS_futimes,
         "futimes",
-        params=[IntParam(), PointerParam()],
+        params=[FileDescriptorParam(), PointerParam()],
     ),  # 139
     SyscallDef(
         numbers.SYS_adjtime,
         "adjtime",
-        params=[PointerParam(), PointerParam()],
+        params=[
+            TimevalParam(direction=ParamDirection.IN),
+            TimevalParam(direction=ParamDirection.OUT),
+        ]
     ),  # 140
 ]

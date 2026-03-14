@@ -51,7 +51,7 @@ IPC_SYSCALLS: list[SyscallDef] = [
             FdSetParam(),  # readfds
             FdSetParam(),  # writefds
             FdSetParam(),  # exceptfds
-            TimevalParam(),  # timeout
+            TimevalParam(direction = ParamDirection.IN),  # timeout
         ],
     ),  # 93
     SyscallDef(
