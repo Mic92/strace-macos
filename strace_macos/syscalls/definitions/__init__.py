@@ -501,6 +501,10 @@ class StructParamBase(Param):
         if error.Fail() or not data:
             return None
 
+        return self.parse_struct(data, no_abbrev)
+
+    def parse_struct(self, data, no_abbrev:bool):
+
         # Parse struct using ctypes
         try:
             struct_obj = self.struct_type.from_buffer_copy(data)

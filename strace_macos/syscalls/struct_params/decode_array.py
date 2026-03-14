@@ -7,11 +7,10 @@ from strace_macos.lldb_loader import load_lldb_module
 
 from strace_macos.syscalls.args import StructArg
 
-def _generic_decode(ctx, param, struct):
+def _generic_decode(ctx, param, data):
     # Decode the struct using the scalar param 
-    decoded_fields = param.decode_struct(
-            ctx.process, ctx.raw_value, no_abbrev=ctx.tracer.no_abbrev
-    )
+    decoded_fields = param.parse_struct(data, no_abbrev=ctx.tracer.no_abbrev)
+
     if decoded_fields:
         return StructArg(decoded_fields)
     return None
@@ -58,8 +57,7 @@ def decode_array(
         except (ValueError, TypeError):
             continue
 
-        struct_list.append(
-            decode_fn(ctx, param, struct)
-        )
+        s = decode_fn(ctx, param, struct)
+        struct_list.append(s)
 
     return struct_list if struct_list else None

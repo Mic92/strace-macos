@@ -108,6 +108,11 @@ class TimevalArray2Param(Param):
         self.direction = direction
 
     def decode(self, ctx: DecodeContext) -> SyscallArg | None:
+        if self.direction == ParamDirection.IN and not ctx.at_entry:
+            return None
+        if self.direction == ParamDirection.OUT and ctx.at_entry:
+            return None
+
         if ctx.raw_value == 0:
             return PointerArg(0)
 
