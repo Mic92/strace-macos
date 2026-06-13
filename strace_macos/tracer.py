@@ -376,8 +376,12 @@ class Tracer:
             module_list.Append(self.lldb.SBFileSpec(dylib))
         comp_unit_list = self.lldb.SBFileSpecList()
         for syscall_def in self.registry.get_all_syscalls():
+            if '_nocancel' in syscall_def.name:
+                name = f'__{syscall_def.name}'
+            else:
+                name = syscall_def.name
             target.BreakpointCreateByName(
-                syscall_def.name,
+                name,
                 self.lldb.eFunctionNameTypeFull,
                 module_list,
                 comp_unit_list,

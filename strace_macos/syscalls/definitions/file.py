@@ -280,6 +280,36 @@ FILE_SYSCALLS: list[SyscallDef] = [
         ],
     ),  # 154
     SyscallDef(
+        numbers.SYS_write_nocancel,
+        "write_nocancel",
+        params=[
+            FileDescriptorParam(),
+            BufferParam(size_arg_index=2, direction=ParamDirection.IN),
+            UnsignedParam(),
+        ],
+    ),  # 397
+    SyscallDef(
+        numbers.SYS_open_nocancel,
+        "open_nocancel",
+        params=[
+            StringParam(),
+            CustomParam(decode_open_flags),
+            VariantParam(
+                discriminator_index=1,  # flags argument
+                default_param=OctalParam(),
+                skip_when_not_set=O_CREAT,  # Skip mode if O_CREAT not set
+            ),
+        ],
+        variadic_start=2,  # Mode argument is variadic
+    ),  # 398
+    SyscallDef(
+        numbers.SYS_close_nocancel,
+        "close_nocancel",
+        params=[
+            FileDescriptorParam(),
+        ],
+    ),  # 399
+    SyscallDef(
         numbers.SYS_preadv,
         "preadv",
         params=[
