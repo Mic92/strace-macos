@@ -61,6 +61,7 @@ class Tracer:
     pending_syscalls: dict[tuple[int, int], SyscallEvent] = field(init=False)
     interrupted: bool = field(init=False)
     decode_ctx: DecodeContext | None = field(init=False, default=None)
+    errno_locations: dict[int, int] = field(init=False)
 
     # Syscall parameter caches (for cross-parameter context sharing)
     sysctl_mib_cache: dict[int, list[int]] = field(init=False, default_factory=dict)
@@ -87,6 +88,10 @@ class Tracer:
         # Track pending syscalls (entry without exit yet)
         # Key: (thread_id, return_address), Value: SyscallEvent with partial data
         self.pending_syscalls = {}
+
+        # Track errno locations
+        # Key: (thread_id), Value: Memory location
+        self.errno_locations = {}
 
         # Signal handling for graceful shutdown
         self.interrupted = False
@@ -545,7 +550,7 @@ class Tracer:
             return
 
         # Decode return value
-        event.return_value = self._decode_return_value(frame, event)
+        event.return_value = self._decode_return_value(frame, thread_id, event)
 
         # Decode output parameters if syscall succeeded
         if isinstance(event.return_value, int) and event.return_value >= 0:
@@ -556,11 +561,12 @@ class Tracer:
         # Write the complete event
         self._write_event(event)
 
-    def _decode_return_value(self, frame: lldb.SBFrame, event: SyscallEvent) -> str | int:
+    def _decode_return_value(self, frame: lldb.SBFrame, thread_id: int, event: SyscallEvent) -> str | int:
         """Decode syscall return value from register.
 
         Args:
             frame: LLDB stack frame
+            thread_id: Thread ID
             event: Syscall event with syscall name and raw args
 
         Returns:
@@ -585,33 +591,39 @@ class Tracer:
 
         # macOS libc wrappers return -1 on error and store errno in TLS
         if signed_ret == -1 and not self.no_abbrev:
-            errno_value = self._read_errno(frame)
+            errno_value = self._read_errno(frame, thread_id)
             return decode_errno(errno_value) if errno_value is not None else "-1"
 
         return signed_ret
 
-    def _read_errno(self, frame: lldb.SBFrame) -> int | None:
+    def _read_errno(self, frame: lldb.SBFrame, thread_id: int) -> int | None:
         """Read errno from thread-local storage via __error().
 
         Args:
             frame: LLDB stack frame at syscall return
+            thread_id: Thread ID
 
         Returns:
             errno value, or None if reading failed
         """
-        options = self.lldb.SBExpressionOptions()
-        options.SetTrapExceptions(False)  # noqa: FBT003
-        options.SetUnwindOnError(False)  # noqa: FBT003
-        options.SetIgnoreBreakpoints(True)  # noqa: FBT003
-        options.SetTimeoutInMicroSeconds(100000)  # 100ms timeout
+        errno_location = self.errno_locations.get(thread_id)
+        if errno_location is None:
+            options = self.lldb.SBExpressionOptions()
+            options.SetTrapExceptions(False)  # noqa: FBT003
+            options.SetUnwindOnError(False)  # noqa: FBT003
+            options.SetIgnoreBreakpoints(True)  # noqa: FBT003
+            options.SetTimeoutInMicroSeconds(100000)  # 100ms timeout
 
-        # The errno macro expands to (*__error()); cast since the expression
-        # evaluator has no debug info for the return type
-        result = frame.EvaluateExpression("*(int *)__error()", options)
-        if not result.IsValid() or result.GetError().Fail():
-            return None
+            # The errno macro expands to (*__error()); cast since the expression
+            # evaluator has no debug info for the return type
+            result = frame.EvaluateExpression("(int *)__error()", options)
+            if not result.IsValid() or result.GetError().Fail():
+                return None
 
-        errno_value = result.GetValueAsSigned()
+            errno_location = result
+            self.errno_locations[thread_id] = errno_location
+
+        errno_value = errno_location.Dereference().GetValueAsSigned()
         return errno_value if errno_value > 0 else None
 
     def _extract_args(
